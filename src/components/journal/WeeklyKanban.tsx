@@ -16,6 +16,7 @@ import {
   uid,
 } from "@/lib/journal-storage";
 import { EntryDialog } from "./EntryDialog";
+import { WeeklySummary } from "./WeeklySummary";
 import { isSameDay } from "date-fns";
 
 export function WeeklyKanban() {
