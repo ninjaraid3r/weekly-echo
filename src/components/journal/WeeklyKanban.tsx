@@ -16,6 +16,7 @@ import {
   uid,
 } from "@/lib/journal-storage";
 import { EntryDialog } from "./EntryDialog";
+import { WeeklySummary } from "./WeeklySummary";
 import { isSameDay } from "date-fns";
 
 export function WeeklyKanban() {
@@ -80,6 +81,8 @@ export function WeeklyKanban() {
           {key}
         </span>
       </div>
+
+      <WeeklySummary />
 
       <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         {days.map((d, i) => {
