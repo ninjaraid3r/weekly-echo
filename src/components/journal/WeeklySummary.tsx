@@ -1,20 +1,21 @@
 import { useMemo } from "react";
-import { BarChart3, Newspaper, PenLine } from "lucide-react";
-import { format } from "date-fns";
+import { BarChart3, Newspaper, PenLine, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { currentWeekStart, weekDays, weekKey, fmtDate } from "@/lib/week";
-import { loadEntries, loadNews, type Impact } from "@/lib/journal-storage";
+import { loadEntries, type Impact } from "@/lib/journal-storage";
+import { useFredEvents } from "@/lib/use-fred-events";
 
 export function WeeklySummary() {
   const weekStart = currentWeekStart();
   const key = weekKey(weekStart);
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
 
+  const start = fmtDate(days[0]);
+  const end = fmtDate(days[days.length - 1]);
+  const { events: news, loading } = useFredEvents(start, end);
+
   const stats = useMemo(() => {
     const entries = loadEntries().filter((e) => e.weekKey === key);
-    const weekDates = new Set(days.map((d) => fmtDate(d)));
-    const news = loadNews().filter((n) => weekDates.has(n.date));
-
     const impactCounts: Record<Impact, number> = {
       high: 0,
       medium: 0,
@@ -25,14 +26,13 @@ export function WeeklySummary() {
       impactCounts[n.impact]++;
       if (n.critical) critical++;
     }
-
     return {
       entries: entries.length,
       news: news.length,
       impactCounts,
       critical,
     };
-  }, [key, days]);
+  }, [key, news]);
 
   return (
     <Card className="bg-card/60 backdrop-blur-sm border-border overflow-hidden">
@@ -59,8 +59,9 @@ export function WeeklySummary() {
               <Newspaper className="size-4" />
             </span>
             <div>
-              <div className="text-2xl font-bold leading-none tracking-tight">
+              <div className="text-2xl font-bold leading-none tracking-tight flex items-center gap-2">
                 {stats.news}
+                {loading && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
               </div>
               <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mt-1">
                 Releases
