@@ -10,17 +10,17 @@ import {
   startOfWeek,
   eachDayOfInterval,
 } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   type NewsEvent,
   type Impact,
-  loadNews,
-  saveNews,
-  uid,
+  getDayJournal,
+  setDayJournal,
 } from "@/lib/journal-storage";
 import { fmtDate } from "@/lib/week";
-import { NewsDialog } from "./NewsDialog";
+import { DayJournalDialog } from "./DayJournalDialog";
+import { useFredEvents } from "@/lib/use-fred-events";
 
 const IMPACT_VAR: Record<Impact, string> = {
   high: "var(--impact-high)",
@@ -30,14 +30,18 @@ const IMPACT_VAR: Record<Impact, string> = {
 
 export function MonthlyNews() {
   const [cursor, setCursor] = useState(() => new Date());
-  const [news, setNews] = useState<NewsEvent[]>(() => loadNews());
   const [openDate, setOpenDate] = useState<string | null>(null);
+  const [journalTick, setJournalTick] = useState(0);
 
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(cursor), { weekStartsOn: 0 });
     const end = endOfWeek(endOfMonth(cursor), { weekStartsOn: 0 });
     return eachDayOfInterval({ start, end });
   }, [cursor]);
+
+  const rangeStart = fmtDate(days[0]);
+  const rangeEnd = fmtDate(days[days.length - 1]);
+  const { events: news, loading, error } = useFredEvents(rangeStart, rangeEnd);
 
   const byDate = useMemo(() => {
     const m = new Map<string, NewsEvent[]>();
@@ -49,10 +53,16 @@ export function MonthlyNews() {
     return m;
   }, [news]);
 
-  const persist = (next: NewsEvent[]) => {
-    saveNews(next);
-    setNews(next);
-  };
+  const journals = useMemo(() => {
+    // depends on journalTick to refresh after save
+    void journalTick;
+    const m = new Map<string, boolean>();
+    for (const d of days) {
+      const k = fmtDate(d);
+      if (getDayJournal(k)) m.set(k, true);
+    }
+    return m;
+  }, [days, journalTick]);
 
   return (
     <section className="space-y-4">
@@ -61,8 +71,16 @@ export function MonthlyNews() {
           <h2 className="text-xl font-semibold tracking-tight">
             {format(cursor, "MMMM yyyy")}
           </h2>
-          <p className="text-sm text-muted-foreground">
-            U.S. economic releases — click any day to log events.
+          <p className="text-sm text-muted-foreground flex items-center gap-2">
+            U.S. economic releases (FRED) — click any day to journal.
+            {loading && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/80">
+                <Loader2 className="size-3 animate-spin" /> syncing
+              </span>
+            )}
+            {error && (
+              <span className="text-xs text-destructive">FRED: {error}</span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -114,6 +132,7 @@ export function MonthlyNews() {
             }
             const inMonth = isSameMonth(d, cursor);
             const today = isToday(d);
+            const hasJournal = journals.has(key);
             return (
               <button
                 key={key}
@@ -132,11 +151,19 @@ export function MonthlyNews() {
                   >
                     {format(d, "d")}
                   </span>
-                  {critical && (
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-primary">
-                      Key
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {hasJournal && (
+                      <PenLine
+                        className="size-3 text-primary"
+                        aria-label="Has journal entry"
+                      />
+                    )}
+                    {critical && (
+                      <span className="text-[9px] font-semibold uppercase tracking-wider text-primary">
+                        Key
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {(["high", "medium", "low"] as Impact[]).map((imp) =>
@@ -161,19 +188,17 @@ export function MonthlyNews() {
 
       <Legend />
 
-      <NewsDialog
+      <DayJournalDialog
         open={openDate !== null}
         onOpenChange={(o) => !o && setOpenDate(null)}
         date={openDate ?? ""}
+        initialContent={openDate ? (getDayJournal(openDate)?.content ?? "") : ""}
         events={openDate ? (byDate.get(openDate) ?? []) : []}
-        onAdd={({ name, impact, critical }) => {
+        onSave={(content) => {
           if (!openDate) return;
-          persist([
-            ...news,
-            { id: uid(), date: openDate, name, impact, critical },
-          ]);
+          setDayJournal(openDate, content);
+          setJournalTick((t) => t + 1);
         }}
-        onRemove={(id) => persist(news.filter((n) => n.id !== id))}
       />
     </section>
   );
