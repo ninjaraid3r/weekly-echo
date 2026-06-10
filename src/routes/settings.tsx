@@ -1,0 +1,232 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { testFredConnection } from "@/lib/fred.functions";
+import { getStoredFredKey, setStoredFredKey } from "@/lib/use-fred-events";
+import {
+  ArrowLeft,
+  KeyRound,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  ExternalLink,
+  Info,
+} from "lucide-react";
+
+export const Route = createFileRoute("/settings")({
+  head: () => ({
+    meta: [
+      { title: "Settings — Weekly Journal" },
+      {
+        name: "description",
+        content: "Configure your FRED API key and app settings.",
+      },
+    ],
+  }),
+  component: SettingsPage,
+});
+
+function SettingsPage() {
+  const [apiKey, setApiKey] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  const testFn = useServerFn(testFredConnection);
+
+  useEffect(() => {
+    const stored = getStoredFredKey();
+    if (stored) {
+      setApiKey(stored);
+      setSaved(true);
+    }
+  }, []);
+
+  const handleSave = () => {
+    setStoredFredKey(apiKey.trim());
+    setSaved(true);
+    setTestResult(null);
+  };
+
+  const handleTest = async () => {
+    if (!apiKey.trim()) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await testFn({ data: { apiKey: apiKey.trim() } });
+      setTestResult({ type: "success", message: result.message });
+    } catch (e) {
+      setTestResult({
+        type: "error",
+        message: e instanceof Error ? e.message : "Connection failed",
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <div
+        className="absolute inset-x-0 top-0 h-64 -z-10 opacity-60 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(60% 100% at 50% 0%, color-mix(in oklch, var(--primary) 25%, transparent), transparent 70%)",
+        }}
+      />
+      <header className="border-b border-border/60 backdrop-blur-sm sticky top-0 z-20 bg-background/70">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="inline-flex items-center justify-center size-9 rounded-lg bg-muted text-muted-foreground border border-border hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              <ArrowLeft className="size-5" />
+            </Link>
+            <div>
+              <h1 className="text-base font-semibold leading-tight">Settings</h1>
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                Configure API keys and preferences
+              </p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-8 space-y-8">
+        {/* FRED API Key Card */}
+        <section className="rounded-xl border border-border bg-card p-6 space-y-5">
+          <div className="flex items-start gap-3">
+            <span className="grid place-items-center size-10 rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
+              <KeyRound className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-card-foreground">
+                FRED API Key
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter your Federal Reserve Economic Data API key to sync U.S. economic
+                news releases automatically.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="block text-xs font-medium text-muted-foreground">
+              API Key
+            </label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => {
+                setApiKey(e.target.value);
+                setSaved(false);
+                setTestResult(null);
+              }}
+              placeholder="Paste your FRED API key here..."
+              className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring transition-shadow"
+            />
+            {saved && (
+              <p className="text-xs text-emerald-500 flex items-center gap-1">
+                <CheckCircle2 className="size-3.5" />
+                Key saved locally in your browser.
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleSave}
+              disabled={!apiKey.trim()}
+              className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save Key
+            </button>
+            <button
+              onClick={handleTest}
+              disabled={!apiKey.trim() || testing}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {testing ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Testing…
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="size-4" />
+                  Test Connection
+                </>
+              )}
+            </button>
+          </div>
+
+          {testResult && (
+            <div
+              className={`rounded-lg border px-4 py-3 text-sm flex items-start gap-2 ${
+                testResult.type === "success"
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
+                  : "border-red-500/30 bg-red-500/10 text-red-500"
+              }`}
+            >
+              {testResult.type === "success" ? (
+                <CheckCircle2 className="size-4 mt-0.5 shrink-0" />
+              ) : (
+                <XCircle className="size-4 mt-0.5 shrink-0" />
+              )}
+              {testResult.message}
+            </div>
+          )}
+
+          <div className="rounded-lg border border-border bg-muted/40 p-4 text-xs text-muted-foreground space-y-2">
+            <div className="flex items-center gap-1.5 font-medium text-foreground">
+              <Info className="size-3.5" />
+              Don&apos;t have a FRED API key?
+            </div>
+            <p>
+              The Federal Reserve Bank of St. Louis provides free API access to
+              economic data. You can request a key in seconds.
+            </p>
+            <a
+              href="https://fred.stlouisfed.org/docs/api/api_key.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-primary hover:text-primary/80 transition-colors"
+            >
+              Get your free FRED API key
+              <ExternalLink className="size-3" />
+            </a>
+          </div>
+        </section>
+
+        {/* About / Data Section */}
+        <section className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-card-foreground">Data & Privacy</h2>
+          <p className="text-xs text-muted-foreground">
+            Your journal entries and API key are stored locally in your browser
+            using localStorage. No data is sent to our servers except FRED API
+            requests (which go directly to the St. Louis Fed).
+          </p>
+          <button
+            onClick={() => {
+              if (confirm("Clear all local journal data? This cannot be undone.")) {
+                localStorage.removeItem("journal_entries");
+                localStorage.removeItem("journal_day_journals");
+                localStorage.removeItem("fred_api_key");
+                setApiKey("");
+                setSaved(false);
+                setTestResult(null);
+              }
+            }}
+            className="inline-flex items-center justify-center rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/20"
+          >
+            Clear All Local Data
+          </button>
+        </section>
+      </main>
+    </div>
+  );
+}
