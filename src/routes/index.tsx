@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { WeeklyKanban } from "@/components/journal/WeeklyKanban";
 import { MonthlyNews } from "@/components/journal/MonthlyNews";
-import { BookOpenText } from "lucide-react";
+import { BookOpenText, Settings } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -42,6 +43,12 @@ function Index() {
               </p>
             </div>
           </div>
+          <Link
+            to="/settings"
+            className="inline-flex items-center justify-center size-9 rounded-lg bg-muted text-muted-foreground border border-border hover:bg-accent hover:text-accent-foreground transition-colors"
+          >
+            <Settings className="size-5" />
+          </Link>
         </div>
       </header>
 

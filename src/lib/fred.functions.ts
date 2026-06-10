@@ -33,14 +33,14 @@ type FredResp = {
 };
 
 export const fetchFredEvents = createServerFn({ method: "GET" })
-  .inputValidator((d: { start: string; end: string }) => {
+  .inputValidator((d: { start: string; end: string; apiKey?: string }) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d.start) || !/^\d{4}-\d{2}-\d{2}$/.test(d.end)) {
       throw new Error("Invalid date range");
     }
     return d;
   })
   .handler(async ({ data }): Promise<NewsEvent[]> => {
-    const key = process.env.FRED_API_KEY;
+    const key = data.apiKey || process.env.FRED_API_KEY;
     if (!key) throw new Error("FRED_API_KEY is not configured");
 
     const url = new URL("https://api.stlouisfed.org/fred/releases/dates");
@@ -76,4 +76,33 @@ export const fetchFredEvents = createServerFn({ method: "GET" })
       });
     }
     return out;
+  });
+
+export const testFredConnection = createServerFn({ method: "GET" })
+  .inputValidator((d: { apiKey: string }) => {
+    if (!d.apiKey || d.apiKey.length < 10) throw new Error("Invalid API key");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const startStr = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
+    const endStr = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`;
+
+    const url = new URL("https://api.stlouisfed.org/fred/releases/dates");
+    url.searchParams.set("api_key", data.apiKey);
+    url.searchParams.set("file_type", "json");
+    url.searchParams.set("realtime_start", startStr);
+    url.searchParams.set("realtime_end", endStr);
+    url.searchParams.set("limit", "10");
+
+    const res = await fetch(url.toString());
+    if (!res.ok) {
+      throw new Error(`FRED API ${res.status}: ${await res.text()}`);
+    }
+    const json = (await res.json()) as FredResp;
+    const count = json.release_dates?.length ?? 0;
+    return { success: true, count, message: `Connection successful. Found ${count} releases this month.` };
   });
