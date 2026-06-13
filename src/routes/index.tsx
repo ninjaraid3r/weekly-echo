@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { WeeklyKanban } from "@/components/journal/WeeklyKanban";
 import { MonthlyNews } from "@/components/journal/MonthlyNews";
-import { BookOpenText, Settings } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { WeeklySummary } from "@/components/journal/WeeklySummary";
+import { LayoutDashboard } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Weekly Journal — Kanban + U.S. News Calendar" },
+      { title: "Dashboard — Weekly Journal + U.S. News Calendar" },
       {
         name: "description",
         content:
@@ -29,30 +29,23 @@ function Index() {
         }}
       />
       <header className="border-b border-border/60 backdrop-blur-sm sticky top-0 z-20 bg-background/70">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="grid place-items-center size-9 rounded-lg bg-primary/15 text-primary border border-primary/30">
-              <BookOpenText className="size-5" />
-            </span>
-            <div>
-              <h1 className="text-base font-semibold leading-tight">
-                Weekly Journal
-              </h1>
-              <p className="text-[11px] text-muted-foreground leading-tight">
-                Track your week · Track the market
-              </p>
-            </div>
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-4 flex items-center gap-3">
+          <span className="grid place-items-center size-9 rounded-lg bg-primary/15 text-primary border border-primary/30">
+            <LayoutDashboard className="size-5" />
+          </span>
+          <div>
+            <h1 className="text-base font-semibold leading-tight">
+              Dashboard
+            </h1>
+            <p className="text-[11px] text-muted-foreground leading-tight">
+              Weekly journal + Monthly news calendar
+            </p>
           </div>
-          <Link
-            to="/settings"
-            className="inline-flex items-center justify-center size-9 rounded-lg bg-muted text-muted-foreground border border-border hover:bg-accent hover:text-accent-foreground transition-colors"
-          >
-            <Settings className="size-5" />
-          </Link>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 space-y-12">
+        <WeeklySummary />
         <WeeklyKanban />
         <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
         <MonthlyNews />
