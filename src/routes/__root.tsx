@@ -7,7 +7,8 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { Star } from "lucide-react";
+import { SidebarProvider, SidebarInset, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 
 import appCss from "../styles.css?url";
