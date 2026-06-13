@@ -118,14 +118,12 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <SidebarProvider defaultOpen={true}>
         <div className="flex min-h-screen w-full">
-          <div className="hidden md:flex shrink-0">
-            <AppSidebar />
-          </div>
-          {/* Mobile: render AppSidebar inside a sheet via the sidebar component */}
-          <div className="md:hidden fixed top-4 left-4 z-50">
-            <MobileSidebarTrigger />
-          </div>
-          <SidebarInset>
+          <AppSidebar />
+          <SidebarInset className="relative flex-1 flex-col">
+            {/* Mobile trigger - visible only on small screens when sidebar is collapsed */}
+            <div className="md:hidden fixed top-3 left-3 z-50">
+              <MobileStarTrigger />
+            </div>
             <Outlet />
           </SidebarInset>
         </div>
@@ -134,12 +132,13 @@ function RootComponent() {
   );
 }
 
-function MobileSidebarTrigger() {
+function MobileStarTrigger() {
   const { setOpenMobile } = useSidebar();
   return (
     <button
       onClick={() => setOpenMobile(true)}
-      className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/20 hover:bg-primary/30 transition-colors"
+      className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/80 hover:bg-primary transition-colors shadow-lg"
+      aria-label="Open sidebar"
     >
       <Star className="size-5 text-white fill-white" />
     </button>
