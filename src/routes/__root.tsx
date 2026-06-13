@@ -7,6 +7,8 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
 
 import appCss from "../styles.css?url";
 
@@ -113,7 +115,32 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <SidebarProvider defaultOpen={true}>
+        <div className="flex min-h-screen w-full">
+          <div className="hidden md:flex shrink-0">
+            <AppSidebar />
+          </div>
+          {/* Mobile: render AppSidebar inside a sheet via the sidebar component */}
+          <div className="md:hidden fixed top-4 left-4 z-50">
+            <MobileSidebarTrigger />
+          </div>
+          <SidebarInset>
+            <Outlet />
+          </SidebarInset>
+        </div>
+      </SidebarProvider>
     </QueryClientProvider>
+  );
+}
+
+function MobileSidebarTrigger() {
+  const { setOpenMobile } = useSidebar();
+  return (
+    <button
+      onClick={() => setOpenMobile(true)}
+      className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/20 hover:bg-primary/30 transition-colors"
+    >
+      <Star className="size-5 text-white fill-white" />
+    </button>
   );
 }
