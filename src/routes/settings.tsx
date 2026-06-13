@@ -1,16 +1,16 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { testFredConnection } from "@/lib/fred.functions";
 import { getStoredFredKey, setStoredFredKey } from "@/lib/use-fred-events";
 import {
-  ArrowLeft,
   KeyRound,
   CheckCircle2,
   XCircle,
   Loader2,
   ExternalLink,
   Info,
+  Settings,
 } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
