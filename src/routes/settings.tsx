@@ -1,16 +1,16 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { testFredConnection } from "@/lib/fred.functions";
 import { getStoredFredKey, setStoredFredKey } from "@/lib/use-fred-events";
 import {
-  ArrowLeft,
   KeyRound,
   CheckCircle2,
   XCircle,
   Loader2,
   ExternalLink,
   Info,
+  Settings,
 } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
@@ -78,20 +78,15 @@ function SettingsPage() {
         }}
       />
       <header className="border-b border-border/60 backdrop-blur-sm sticky top-0 z-20 bg-background/70">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              to="/"
-              className="inline-flex items-center justify-center size-9 rounded-lg bg-muted text-muted-foreground border border-border hover:bg-accent hover:text-accent-foreground transition-colors"
-            >
-              <ArrowLeft className="size-5" />
-            </Link>
-            <div>
-              <h1 className="text-base font-semibold leading-tight">Settings</h1>
-              <p className="text-[11px] text-muted-foreground leading-tight">
-                Configure API keys and preferences
-              </p>
-            </div>
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 py-4 flex items-center gap-3">
+          <span className="grid place-items-center size-9 rounded-lg bg-primary/15 text-primary border border-primary/30">
+            <Settings className="size-5" />
+          </span>
+          <div>
+            <h1 className="text-base font-semibold leading-tight">Settings</h1>
+            <p className="text-[11px] text-muted-foreground leading-tight">
+              Configure API keys and preferences
+            </p>
           </div>
         </div>
       </header>

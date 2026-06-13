@@ -9,12 +9,24 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WeeklyRouteImport } from './routes/weekly'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as MonthlyRouteImport } from './routes/monthly'
 import { Route as IndexRouteImport } from './routes/index'
 
+const WeeklyRoute = WeeklyRouteImport.update({
+  id: '/weekly',
+  path: '/weekly',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MonthlyRoute = MonthlyRouteImport.update({
+  id: '/monthly',
+  path: '/monthly',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -25,37 +37,59 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/monthly': typeof MonthlyRoute
   '/settings': typeof SettingsRoute
+  '/weekly': typeof WeeklyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/monthly': typeof MonthlyRoute
   '/settings': typeof SettingsRoute
+  '/weekly': typeof WeeklyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/monthly': typeof MonthlyRoute
   '/settings': typeof SettingsRoute
+  '/weekly': typeof WeeklyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/settings'
+  fullPaths: '/' | '/monthly' | '/settings' | '/weekly'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings'
-  id: '__root__' | '/' | '/settings'
+  to: '/' | '/monthly' | '/settings' | '/weekly'
+  id: '__root__' | '/' | '/monthly' | '/settings' | '/weekly'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  MonthlyRoute: typeof MonthlyRoute
   SettingsRoute: typeof SettingsRoute
+  WeeklyRoute: typeof WeeklyRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/weekly': {
+      id: '/weekly'
+      path: '/weekly'
+      fullPath: '/weekly'
+      preLoaderRoute: typeof WeeklyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/monthly': {
+      id: '/monthly'
+      path: '/monthly'
+      fullPath: '/monthly'
+      preLoaderRoute: typeof MonthlyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -70,18 +104,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  MonthlyRoute: MonthlyRoute,
   SettingsRoute: SettingsRoute,
+  WeeklyRoute: WeeklyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

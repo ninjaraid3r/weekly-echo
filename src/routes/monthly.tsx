@@ -1,24 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { WeeklyKanban } from "@/components/journal/WeeklyKanban";
 import { MonthlyNews } from "@/components/journal/MonthlyNews";
-import { WeeklySummary } from "@/components/journal/WeeklySummary";
-import { LayoutDashboard } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/monthly")({
   head: () => ({
     meta: [
-      { title: "Dashboard — Weekly Journal + U.S. News Calendar" },
+      { title: "Monthly Calendar — U.S. News Releases" },
       {
         name: "description",
-        content:
-          "Journal your week in a kanban view and track high, medium, and low impact U.S. economic news releases.",
+        content: "Track high, medium, and low impact U.S. economic news releases by month.",
       },
     ],
   }),
-  component: Index,
+  component: MonthlyPage,
 });
 
-function Index() {
+function MonthlyPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div
@@ -31,23 +28,20 @@ function Index() {
       <header className="border-b border-border/60 backdrop-blur-sm sticky top-0 z-20 bg-background/70">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 py-4 flex items-center gap-3">
           <span className="grid place-items-center size-9 rounded-lg bg-primary/15 text-primary border border-primary/30">
-            <LayoutDashboard className="size-5" />
+            <CalendarDays className="size-5" />
           </span>
           <div>
             <h1 className="text-base font-semibold leading-tight">
-              Dashboard
+              Monthly Calendar
             </h1>
             <p className="text-[11px] text-muted-foreground leading-tight">
-              Weekly journal + Monthly news calendar
+              U.S. economic news releases · Impact tracking
             </p>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 space-y-12">
-        <WeeklySummary />
-        <WeeklyKanban />
-        <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
         <MonthlyNews />
       </main>
 
