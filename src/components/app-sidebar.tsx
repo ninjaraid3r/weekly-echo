@@ -1,5 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useSidebar } from "@/components/ui/sidebar";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarFooter,
+  useSidebar,
+} from "@/components/ui/sidebar";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -17,7 +23,7 @@ const navItems = [
 ];
 
 export function AppSidebar() {
-  const { state, toggleSidebar } = useSidebar();
+  const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const currentPath = useRouterState({
     select: (router) => router.location.pathname,
@@ -26,70 +32,58 @@ export function AppSidebar() {
   const isActive = (path: string) => currentPath === path;
 
   return (
-    <div
-      className={cn(
-        "flex h-full flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border",
-        collapsed ? "w-[var(--sidebar-width-icon)]" : "w-[var(--sidebar-width)]"
-      )}
-    >
-      {/* Sidebar Header with Star Trigger */}
-      <div className="flex items-center gap-2 p-3 border-b border-sidebar-border">
-        <button
-          onClick={toggleSidebar}
-          className={cn(
-            "flex items-center justify-center rounded-lg transition-colors cursor-pointer",
-            collapsed ? "w-9 h-9 mx-auto" : "w-9 h-9",
-            "bg-primary/20 hover:bg-primary/30"
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+      <SidebarHeader className="px-3 py-3">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/20 shrink-0">
+            <Star className="size-5 text-white fill-white" />
+          </div>
+          {!collapsed && (
+            <span className="text-sm font-semibold text-sidebar-foreground truncate">
+              Trading Journal
+            </span>
           )}
-          title="Toggle Sidebar"
-        >
-          <Star className="size-5 text-white fill-white" />
-        </button>
-        {!collapsed && (
-          <span className="text-sm font-semibold text-sidebar-foreground truncate">
-            Trading Journal
-          </span>
-        )}
-      </div>
+        </div>
+      </SidebarHeader>
 
-      {/* Tabbed Navigation */}
-      <div className="flex-1 overflow-auto p-2 space-y-1">
-        {navItems.map((item) => {
-          const active = isActive(item.url);
-          return (
-            <Link
-              key={item.title}
-              to={item.url}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all cursor-pointer",
-                "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                active
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                  : "text-sidebar-foreground/80",
-                collapsed && "justify-center px-2"
-              )}
-              title={collapsed ? item.title : undefined}
-            >
-              <item.icon
+      <SidebarContent className="px-2 py-2">
+        <div className="space-y-1">
+          {navItems.map((item) => {
+            const active = isActive(item.url);
+            return (
+              <Link
+                key={item.title}
+                to={item.url}
                 className={cn(
-                  "size-5 shrink-0",
-                  active ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/70"
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all cursor-pointer",
+                  "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  active
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                    : "text-sidebar-foreground/80",
+                  collapsed && "justify-center px-2"
                 )}
-              />
-              {!collapsed && <span>{item.title}</span>}
-            </Link>
-          );
-        })}
-      </div>
+                title={collapsed ? item.title : undefined}
+              >
+                <item.icon
+                  className={cn(
+                    "size-5 shrink-0",
+                    active ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/70"
+                  )}
+                />
+                {!collapsed && <span>{item.title}</span>}
+              </Link>
+            );
+          })}
+        </div>
+      </SidebarContent>
 
-      {/* Footer */}
-      <div className="p-3 border-t border-sidebar-border">
+      <SidebarFooter className="px-3 py-3">
         {!collapsed && (
           <p className="text-[10px] text-sidebar-foreground/50 text-center">
             Data stored locally
           </p>
         )}
-      </div>
-    </div>
+      </SidebarFooter>
+    </Sidebar>
   );
 }
