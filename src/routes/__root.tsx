@@ -7,8 +7,6 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { Star } from "lucide-react";
-import { SidebarProvider, SidebarInset, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 
 import appCss from "../styles.css?url";
@@ -116,31 +114,12 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SidebarProvider defaultOpen={true}>
-        <div className="flex min-h-screen w-full">
-          <AppSidebar />
-          <SidebarInset className="relative flex-1 flex-col">
-            {/* Mobile trigger - visible only on small screens when sidebar is collapsed */}
-            <div className="md:hidden fixed top-3 left-3 z-50">
-              <MobileStarTrigger />
-            </div>
-            <Outlet />
-          </SidebarInset>
+      <div className="flex min-h-screen w-full">
+        <AppSidebar />
+        <div className="flex-1 flex flex-col min-w-0">
+          <Outlet />
         </div>
-      </SidebarProvider>
+      </div>
     </QueryClientProvider>
-  );
-}
-
-function MobileStarTrigger() {
-  const { setOpenMobile } = useSidebar();
-  return (
-    <button
-      onClick={() => setOpenMobile(true)}
-      className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/80 hover:bg-primary transition-colors shadow-lg"
-      aria-label="Open sidebar"
-    >
-      <Star className="size-5 text-white fill-white" />
-    </button>
   );
 }
