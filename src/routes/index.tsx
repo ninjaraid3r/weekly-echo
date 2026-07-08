@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { WeeklyKanban } from "@/components/journal/WeeklyKanban";
 import { MonthlyNews } from "@/components/journal/MonthlyNews";
 import { WeeklySummary } from "@/components/journal/WeeklySummary";
+import { RssFeed } from "@/components/dashboard/RssFeed";
 import { LayoutDashboard } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -49,6 +50,8 @@ function Index() {
         <WeeklyKanban />
         <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
         <MonthlyNews />
+        <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+        <RssFeed />
       </main>
 
       <footer className="border-t border-border/60 mt-12">
