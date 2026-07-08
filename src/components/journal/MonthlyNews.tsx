@@ -21,6 +21,7 @@ import {
 import { fmtDate } from "@/lib/week";
 import { DayJournalDialog } from "./DayJournalDialog";
 import { useFredEvents } from "@/lib/use-fred-events";
+import { getMarketEvents } from "@/lib/market-events";
 
 const IMPACT_VAR: Record<Impact, string> = {
   high: "var(--impact-high)",
@@ -133,6 +134,7 @@ export function MonthlyNews() {
             const inMonth = isSameMonth(d, cursor);
             const today = isToday(d);
             const hasJournal = journals.has(key);
+            const marketEvents = getMarketEvents(d);
             return (
               <button
                 key={key}
@@ -180,6 +182,18 @@ export function MonthlyNews() {
                     ) : null
                   )}
                 </div>
+                {marketEvents.length > 0 && (
+                  <div className="mt-1.5 space-y-0.5">
+                    {marketEvents.map((ev) => (
+                      <div
+                        key={ev.label}
+                        className={`text-[10px] font-semibold leading-tight ${ev.className ?? "text-white"}`}
+                      >
+                        {ev.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </button>
             );
           })}
