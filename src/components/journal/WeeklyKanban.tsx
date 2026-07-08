@@ -8,6 +8,7 @@ import {
   weekKey,
   DAY_LABELS,
   fmtDay,
+  fmtDate,
 } from "@/lib/week";
 import {
   type Entry,
@@ -18,11 +19,32 @@ import {
 import { EntryDialog } from "./EntryDialog";
 import { WeeklySummary } from "./WeeklySummary";
 import { isSameDay } from "date-fns";
+import { useFredEvents } from "@/lib/use-fred-events";
+import { getMarketEvents } from "@/lib/market-events";
+import type { Impact } from "@/lib/journal-storage";
+
+const IMPACT_COLOR: Record<Impact, string> = {
+  high: "var(--impact-high)",
+  medium: "var(--impact-medium)",
+  low: "var(--impact-low)",
+};
 
 export function WeeklyKanban() {
   const weekStart = useMemo(() => currentWeekStart(), []);
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
   const key = weekKey(weekStart);
+  const rangeStart = fmtDate(days[0]);
+  const rangeEnd = fmtDate(days[days.length - 1]);
+  const { events: news } = useFredEvents(rangeStart, rangeEnd);
+  const newsByDate = useMemo(() => {
+    const m = new Map<string, { high: number; medium: number; low: number }>();
+    for (const n of news) {
+      const c = m.get(n.date) ?? { high: 0, medium: 0, low: 0 };
+      c[n.impact]++;
+      m.set(n.date, c);
+    }
+    return m;
+  }, [news]);
 
   const [entries, setEntries] = useState<Entry[]>(() =>
     loadEntries().filter((e) => e.weekKey === key)
@@ -90,6 +112,8 @@ export function WeeklyKanban() {
             .filter((e) => e.day === i)
             .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
           const isToday = isSameDay(d, today);
+          const counts = newsByDate.get(fmtDate(d));
+          const marketEvents = getMarketEvents(d);
           return (
             <div
               key={i}
@@ -119,6 +143,35 @@ export function WeeklyKanban() {
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
+              {(counts || marketEvents.length > 0) && (
+                <div className="px-3 py-1.5 border-b border-border/60 space-y-1">
+                  {counts && (
+                    <div className="flex flex-wrap gap-1">
+                      {(["high", "medium", "low"] as Impact[]).map((imp) =>
+                        counts[imp] > 0 ? (
+                          <span
+                            key={imp}
+                            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-background"
+                            style={{ background: IMPACT_COLOR[imp] }}
+                            title={`${counts[imp]} ${imp} impact`}
+                          >
+                            <span className="size-1 rounded-full bg-background/80" />
+                            {counts[imp]}
+                          </span>
+                        ) : null
+                      )}
+                    </div>
+                  )}
+                  {marketEvents.map((ev) => (
+                    <div
+                      key={ev.label}
+                      className={`text-[10px] font-semibold leading-tight ${ev.className ?? "text-white"}`}
+                    >
+                      {ev.label}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex-1 p-2 space-y-2 min-h-32">
                 {dayEntries.length === 0 && (
                   <button
