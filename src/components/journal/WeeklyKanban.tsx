@@ -8,6 +8,7 @@ import {
   weekKey,
   DAY_LABELS,
   fmtDay,
+  fmtDate,
 } from "@/lib/week";
 import {
   type Entry,
@@ -20,7 +21,6 @@ import { WeeklySummary } from "./WeeklySummary";
 import { isSameDay } from "date-fns";
 import { useFredEvents } from "@/lib/use-fred-events";
 import { getMarketEvents } from "@/lib/market-events";
-import { fmtDate } from "@/lib/week";
 import type { Impact } from "@/lib/journal-storage";
 
 const IMPACT_COLOR: Record<Impact, string> = {
