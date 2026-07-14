@@ -10,7 +10,7 @@ import {
   startOfWeek,
   eachDayOfInterval,
 } from "date-fns";
-import { ChevronLeft, ChevronRight, Loader2, PenLine } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, PenLine, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   type NewsEvent,
@@ -42,7 +42,7 @@ export function MonthlyNews() {
 
   const rangeStart = fmtDate(days[0]);
   const rangeEnd = fmtDate(days[days.length - 1]);
-  const { events: news, loading, error } = useFredEvents(rangeStart, rangeEnd);
+  const { events: news, loading, error, refetch } = useFredEvents(rangeStart, rangeEnd);
 
   const byDate = useMemo(() => {
     const m = new Map<string, NewsEvent[]>();
@@ -85,6 +85,20 @@ export function MonthlyNews() {
           </p>
         </div>
         <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={loading}
+            title="Re-sync releases from FRED"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Sync
+          </Button>
           <Button
             variant="outline"
             size="icon"

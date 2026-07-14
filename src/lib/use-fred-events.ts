@@ -15,11 +15,17 @@ export function setStoredFredKey(key: string) {
 const cache = new Map<string, NewsEvent[]>();
 const inflight = new Map<string, Promise<NewsEvent[]>>();
 
+export function clearFredCache() {
+  cache.clear();
+  inflight.clear();
+}
+
 export function useFredEvents(start: string, end: string) {
   const key = `${start}|${end}`;
   const [events, setEvents] = useState<NewsEvent[]>(() => cache.get(key) ?? []);
   const [loading, setLoading] = useState(!cache.has(key));
   const [error, setError] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +58,12 @@ export function useFredEvents(start: string, end: string) {
     return () => {
       cancelled = true;
     };
-  }, [key, start, end]);
+  }, [key, start, end, nonce]);
 
-  return { events, loading, error };
+  const refetch = () => {
+    clearFredCache();
+    setNonce((n) => n + 1);
+  };
+
+  return { events, loading, error, refetch };
 }

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WeeklyRouteImport } from './routes/weekly'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as MonthlyRouteImport } from './routes/monthly'
+import { Route as JournalRouteImport } from './routes/journal'
 import { Route as IndexRouteImport } from './routes/index'
 
 const WeeklyRoute = WeeklyRouteImport.update({
@@ -29,6 +30,11 @@ const MonthlyRoute = MonthlyRouteImport.update({
   path: '/monthly',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JournalRoute = JournalRouteImport.update({
+  id: '/journal',
+  path: '/journal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -37,12 +43,14 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/journal': typeof JournalRoute
   '/monthly': typeof MonthlyRoute
   '/settings': typeof SettingsRoute
   '/weekly': typeof WeeklyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/journal': typeof JournalRoute
   '/monthly': typeof MonthlyRoute
   '/settings': typeof SettingsRoute
   '/weekly': typeof WeeklyRoute
@@ -50,20 +58,22 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/journal': typeof JournalRoute
   '/monthly': typeof MonthlyRoute
   '/settings': typeof SettingsRoute
   '/weekly': typeof WeeklyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/monthly' | '/settings' | '/weekly'
+  fullPaths: '/' | '/journal' | '/monthly' | '/settings' | '/weekly'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/monthly' | '/settings' | '/weekly'
-  id: '__root__' | '/' | '/monthly' | '/settings' | '/weekly'
+  to: '/' | '/journal' | '/monthly' | '/settings' | '/weekly'
+  id: '__root__' | '/' | '/journal' | '/monthly' | '/settings' | '/weekly'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  JournalRoute: typeof JournalRoute
   MonthlyRoute: typeof MonthlyRoute
   SettingsRoute: typeof SettingsRoute
   WeeklyRoute: typeof WeeklyRoute
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MonthlyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/journal': {
+      id: '/journal'
+      path: '/journal'
+      fullPath: '/journal'
+      preLoaderRoute: typeof JournalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -104,6 +121,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  JournalRoute: JournalRoute,
   MonthlyRoute: MonthlyRoute,
   SettingsRoute: SettingsRoute,
   WeeklyRoute: WeeklyRoute,
