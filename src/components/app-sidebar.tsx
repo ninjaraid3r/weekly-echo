@@ -6,7 +6,7 @@ import {
   Settings,
   Star,
   ChevronLeft,
-  ChevronRight,
+  NotebookPen,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Weekly", url: "/weekly", icon: BookOpen },
   { title: "Monthly", url: "/monthly", icon: CalendarDays },
+  { title: "Journal", url: "/journal", icon: NotebookPen },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

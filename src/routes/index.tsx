@@ -46,12 +46,16 @@ function Index() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 space-y-12">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-3">
+            <RssFeed />
+          </div>
+        </div>
+        <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
         <WeeklySummary />
         <WeeklyKanban />
         <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
         <MonthlyNews />
-        <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-        <RssFeed />
       </main>
 
       <footer className="border-t border-border/60 mt-12">
