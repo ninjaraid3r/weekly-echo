@@ -152,3 +152,8 @@
     background-position: 0 0, 11px 11px;
   }
 }
+
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}

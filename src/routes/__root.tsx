@@ -8,6 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/app-sidebar";
+import { SessionClock } from "@/components/market/SessionClock";
 
 import appCss from "../styles.css?url";
 
@@ -117,6 +118,7 @@ function RootComponent() {
       <div className="flex min-h-screen w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
+        <SessionClock />
           <Outlet />
         </div>
       </div>
