@@ -5,6 +5,14 @@ import { testFredConnection } from "@/lib/fred.functions";
 import { getStoredFredKey, setStoredFredKey } from "@/lib/use-fred-events";
 import { loadFeeds, addFeed, removeFeed, type RssFeed } from "@/lib/rss-storage";
 import {
+  loadPrefs,
+  savePrefs,
+  exportAllData,
+  importAllData,
+  DEFAULT_PREFS,
+  type UserPrefs,
+} from "@/lib/user-prefs";
+import {
   KeyRound,
   CheckCircle2,
   XCircle,
@@ -15,6 +23,11 @@ import {
   Rss,
   Plus,
   Trash2,
+  User,
+  Sliders,
+  Download,
+  Upload,
+  RotateCcw,
 } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
@@ -42,6 +55,8 @@ function SettingsPage() {
   const [newFeedUrl, setNewFeedUrl] = useState("");
   const [newFeedName, setNewFeedName] = useState("");
   const [feedError, setFeedError] = useState<string | null>(null);
+  const [prefs, setPrefs] = useState<UserPrefs>(DEFAULT_PREFS);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   const testFn = useServerFn(testFredConnection);
 
@@ -52,7 +67,37 @@ function SettingsPage() {
       setSaved(true);
     }
     setFeeds(loadFeeds());
+    setPrefs(loadPrefs());
   }, []);
+
+  const updatePref = <K extends keyof UserPrefs>(k: K, v: UserPrefs[K]) => {
+    const next = { ...prefs, [k]: v };
+    setPrefs(next);
+    savePrefs(next);
+  };
+
+  const handleExport = () => {
+    const blob = new Blob([exportAllData()], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `journal-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const n = importAllData(String(reader.result ?? ""));
+        setImportMsg(`Imported ${n} keys. Reload to see changes.`);
+      } catch (e) {
+        setImportMsg(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const handleAddFeed = () => {
     const url = newFeedUrl.trim();
@@ -120,6 +165,125 @@ function SettingsPage() {
       </header>
 
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-8 space-y-8">
+        {/* Profile Card */}
+        <section className="rounded-xl border border-border bg-card p-6 space-y-5">
+          <div className="flex items-start gap-3">
+            <span className="grid place-items-center size-10 rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
+              <User className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-card-foreground">Profile</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Personalize how the app greets you.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-muted-foreground">
+              Display Name
+            </label>
+            <input
+              type="text"
+              value={prefs.displayName}
+              onChange={(e) => updatePref("displayName", e.target.value)}
+              placeholder="Trader"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+        </section>
+
+        {/* Preferences Card */}
+        <section className="rounded-xl border border-border bg-card p-6 space-y-5">
+          <div className="flex items-start gap-3">
+            <span className="grid place-items-center size-10 rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
+              <Sliders className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-card-foreground">
+                Preferences
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Everyday behavior — display, clock, and dashboard modules.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-muted-foreground">
+                Default Journal Template
+              </label>
+              <select
+                value={prefs.defaultTemplate}
+                onChange={(e) =>
+                  updatePref("defaultTemplate", e.target.value as UserPrefs["defaultTemplate"])
+                }
+                className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="none">None (blank)</option>
+                <option value="recap">Daily Recap</option>
+                <option value="learned">What I Learned</option>
+                <option value="improve">Improvements</option>
+                <option value="market">Market Day</option>
+                <option value="gratitude">Gratitude</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-muted-foreground">
+                Quotes Refresh (seconds)
+              </label>
+              <input
+                type="number"
+                min={10}
+                max={600}
+                value={prefs.quotesRefreshSec}
+                onChange={(e) =>
+                  updatePref("quotesRefreshSec", Math.max(10, Number(e.target.value) || 30))
+                }
+                className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(
+              [
+                ["showTickers", "Show Live Ticker cards on Dashboard"],
+                ["showRss", "Show RSS Feed on Dashboard"],
+                ["showSessionLights", "Show Session Lights in top bar"],
+                ["showPowerHourTicker", "Show Power Hour ticker tape (3–4pm ET)"],
+                ["weekStartsMonday", "Week starts on Monday"],
+                ["clock24h", "Use 24-hour clock"],
+                ["compactMode", "Compact mode (tighter spacing)"],
+              ] as const
+            ).map(([key, label]) => (
+              <label
+                key={key}
+                className="flex items-center gap-2 rounded-lg border border-input bg-background/50 px-3 py-2 text-sm cursor-pointer hover:bg-accent/40"
+              >
+                <input
+                  type="checkbox"
+                  checked={prefs[key] as boolean}
+                  onChange={(e) => updatePref(key, e.target.checked as never)}
+                  className="size-4 accent-primary"
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+
+          <button
+            onClick={() => {
+              savePrefs(DEFAULT_PREFS);
+              setPrefs(DEFAULT_PREFS);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-3 py-2 text-xs font-medium hover:bg-accent"
+          >
+            <RotateCcw className="size-3.5" /> Reset preferences to defaults
+          </button>
+        </section>
+
         {/* FRED API Key Card */}
         <section className="rounded-xl border border-border bg-card p-6 space-y-5">
           <div className="flex items-start gap-3">
@@ -314,6 +478,29 @@ function SettingsPage() {
         {/* About / Data Section */}
         <section className="rounded-xl border border-border bg-card p-6 space-y-4">
           <h2 className="text-sm font-semibold text-card-foreground">Data & Privacy</h2>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
+            >
+              <Download className="size-4" /> Export Backup (JSON)
+            </button>
+            <label className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent cursor-pointer">
+              <Upload className="size-4" /> Import Backup
+              <input
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleImport(f);
+                }}
+              />
+            </label>
+          </div>
+          {importMsg && (
+            <p className="text-xs text-muted-foreground">{importMsg}</p>
+          )}
           <p className="text-xs text-muted-foreground">
             Your journal entries and API key are stored locally in your browser
             using localStorage. No data is sent to our servers except FRED API
