@@ -5,6 +5,14 @@ import { testFredConnection } from "@/lib/fred.functions";
 import { getStoredFredKey, setStoredFredKey } from "@/lib/use-fred-events";
 import { loadFeeds, addFeed, removeFeed, type RssFeed } from "@/lib/rss-storage";
 import {
+  loadPrefs,
+  savePrefs,
+  exportAllData,
+  importAllData,
+  DEFAULT_PREFS,
+  type UserPrefs,
+} from "@/lib/user-prefs";
+import {
   KeyRound,
   CheckCircle2,
   XCircle,
@@ -15,6 +23,11 @@ import {
   Rss,
   Plus,
   Trash2,
+  User,
+  Sliders,
+  Download,
+  Upload,
+  RotateCcw,
 } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
