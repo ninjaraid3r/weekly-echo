@@ -55,6 +55,8 @@ function SettingsPage() {
   const [newFeedUrl, setNewFeedUrl] = useState("");
   const [newFeedName, setNewFeedName] = useState("");
   const [feedError, setFeedError] = useState<string | null>(null);
+  const [prefs, setPrefs] = useState<UserPrefs>(DEFAULT_PREFS);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   const testFn = useServerFn(testFredConnection);
 
@@ -65,7 +67,37 @@ function SettingsPage() {
       setSaved(true);
     }
     setFeeds(loadFeeds());
+    setPrefs(loadPrefs());
   }, []);
+
+  const updatePref = <K extends keyof UserPrefs>(k: K, v: UserPrefs[K]) => {
+    const next = { ...prefs, [k]: v };
+    setPrefs(next);
+    savePrefs(next);
+  };
+
+  const handleExport = () => {
+    const blob = new Blob([exportAllData()], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `journal-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const n = importAllData(String(reader.result ?? ""));
+        setImportMsg(`Imported ${n} keys. Reload to see changes.`);
+      } catch (e) {
+        setImportMsg(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const handleAddFeed = () => {
     const url = newFeedUrl.trim();
