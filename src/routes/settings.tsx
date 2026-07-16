@@ -359,6 +359,29 @@ function SettingsPage() {
         {/* About / Data Section */}
         <section className="rounded-xl border border-border bg-card p-6 space-y-4">
           <h2 className="text-sm font-semibold text-card-foreground">Data & Privacy</h2>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
+            >
+              <Download className="size-4" /> Export Backup (JSON)
+            </button>
+            <label className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent cursor-pointer">
+              <Upload className="size-4" /> Import Backup
+              <input
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleImport(f);
+                }}
+              />
+            </label>
+          </div>
+          {importMsg && (
+            <p className="text-xs text-muted-foreground">{importMsg}</p>
+          )}
           <p className="text-xs text-muted-foreground">
             Your journal entries and API key are stored locally in your browser
             using localStorage. No data is sent to our servers except FRED API
