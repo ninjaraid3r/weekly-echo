@@ -4,6 +4,8 @@ import { MonthlyNews } from "@/components/journal/MonthlyNews";
 import { WeeklySummary } from "@/components/journal/WeeklySummary";
 import { RssFeed } from "@/components/dashboard/RssFeed";
 import { TickerGrid } from "@/components/market/TickerGrid";
+import { SessionChart } from "@/components/market/SessionChart";
+import { SessionRangesCard } from "@/components/market/SessionRangesCard";
 import { LayoutDashboard } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -54,6 +56,9 @@ function Index() {
         </div>
         <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
         <TickerGrid />
+        <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+        <SessionChart />
+        <SessionRangesCard />
         <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
         <WeeklySummary />
         <WeeklyKanban />
