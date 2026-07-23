@@ -60,9 +60,9 @@ function currentSessionKey(d: Date): string {
   return "closed";
 }
 
-function formatClock(d: Date): string {
+function formatClock(d: Date, timeZone: string): string {
   const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
+    timeZone,
     hour12: false,
     hour: "2-digit",
     minute: "2-digit",
@@ -86,7 +86,8 @@ export function SessionClock() {
   const sessionKey = currentSessionKey(now);
   const session = SESSIONS[sessionKey];
   const isPower = sessionKey === "power";
-  const clock = formatClock(now);
+  const etClock = formatClock(now, "America/New_York");
+  const ptClock = formatClock(now, "America/Los_Angeles");
 
   const lightOrder: Array<keyof typeof SESSIONS> = [
     "asia",
@@ -100,24 +101,34 @@ export function SessionClock() {
 
   return (
     <div className="border-b border-border bg-card/70 backdrop-blur-sm">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-2 flex items-center gap-4 flex-wrap">
-        {/* Digital clock */}
-        <div className="flex items-baseline gap-2">
-          <span
-            className="font-mono font-bold text-2xl tabular-nums tracking-wider"
-            style={{ textShadow: "0 0 12px color-mix(in oklch, var(--primary) 40%, transparent)" }}
-          >
-            {clock}
-          </span>
-          <span className="text-[10px] uppercase tracking-widest text-muted-foreground">ET</span>
-        </div>
-
-        <div className="text-xs text-muted-foreground">
-          Session: <span className="font-semibold text-foreground">{session.label}</span>
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-2 flex flex-col gap-2">
+        {/* Digital clocks */}
+        <div className="flex items-center gap-6 flex-wrap">
+          <div className="flex items-baseline gap-2">
+            <span
+              className="font-mono font-bold text-2xl tabular-nums tracking-wider"
+              style={{ color: "#7dd3fc", textShadow: "0 0 12px rgba(125,211,252,0.55)" }}
+            >
+              {ptClock}
+            </span>
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">PT</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span
+              className="font-mono font-bold text-2xl tabular-nums tracking-wider"
+              style={{ color: "#ef4444", textShadow: "0 0 12px rgba(239,68,68,0.55)" }}
+            >
+              {etClock}
+            </span>
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">ET</span>
+          </div>
+          <div className="ml-auto text-xs text-muted-foreground">
+            Session: <span className="font-semibold text-foreground">{session.label}</span>
+          </div>
         </div>
 
         {/* Session lights */}
-        <div className="ml-auto flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           {lightOrder.map((k) => {
             const s = SESSIONS[k];
             const active = sessionKey === k;
