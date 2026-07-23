@@ -63,7 +63,7 @@ function currentSessionKey(d: Date): string {
 function formatClock(d: Date, timeZone: string): string {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone,
-    hour12: false,
+    hour12: true,
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
