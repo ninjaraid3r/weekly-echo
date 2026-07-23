@@ -38,6 +38,12 @@ export function useFredEvents(start: string, end: string) {
     setLoading(true);
     setError(null);
     const apiKey = getStoredFredKey() ?? undefined;
+    if (!apiKey) {
+      setEvents([]);
+      setLoading(false);
+      setError("No FRED API key set. Add one in Settings to sync releases.");
+      return;
+    }
     const p =
       inflight.get(key) ??
       fetchFredEvents({ data: { start, end, apiKey } }).then((r) => {

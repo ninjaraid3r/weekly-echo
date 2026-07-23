@@ -61,52 +61,89 @@ export const QUOTE_GROUPS: QuoteGroup[] = [
   },
 ];
 
-async function fetchOne(symbol: string, label: string): Promise<Quote> {
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-        Accept: "application/json",
-      },
-    });
-    if (!res.ok) throw new Error(`${res.status}`);
-    const json = (await res.json()) as any;
-    const meta = json?.chart?.result?.[0]?.meta;
-    if (!meta) throw new Error("no meta");
-    return {
-      symbol,
-      label,
-      price: typeof meta.regularMarketPrice === "number" ? meta.regularMarketPrice : null,
-      prevClose:
-        typeof meta.chartPreviousClose === "number"
-          ? meta.chartPreviousClose
-          : typeof meta.previousClose === "number"
-            ? meta.previousClose
-            : null,
-      currency: meta.currency ?? null,
-    };
-  } catch (e) {
-    return {
-      symbol,
-      label,
-      price: null,
-      prevClose: null,
-      currency: null,
-      error: e instanceof Error ? e.message : "failed",
-    };
+// Module-level cache — the worker instance keeps quotes warm so we don't
+// hammer Yahoo (which 429s from shared cloud IPs quickly).
+const quoteCache = new Map<string, { at: number; quote: Quote }>();
+const QUOTE_TTL_MS = 45_000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function fetchOneFresh(symbol: string, label: string): Promise<Quote> {
+  const hosts = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"];
+  let lastErr = "failed";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const host = hosts[attempt % hosts.length];
+    const url = `https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+          Accept: "application/json",
+        },
+      });
+      if (res.status === 429) {
+        lastErr = "429";
+        await sleep(400 * (attempt + 1));
+        continue;
+      }
+      if (!res.ok) throw new Error(`${res.status}`);
+      const json = (await res.json()) as any;
+      const meta = json?.chart?.result?.[0]?.meta;
+      if (!meta) throw new Error("no meta");
+      return {
+        symbol,
+        label,
+        price:
+          typeof meta.regularMarketPrice === "number" ? meta.regularMarketPrice : null,
+        prevClose:
+          typeof meta.chartPreviousClose === "number"
+            ? meta.chartPreviousClose
+            : typeof meta.previousClose === "number"
+              ? meta.previousClose
+              : null,
+        currency: meta.currency ?? null,
+      };
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : "failed";
+    }
   }
+  return { symbol, label, price: null, prevClose: null, currency: null, error: lastErr };
 }
+
+async function fetchOne(symbol: string, label: string): Promise<Quote> {
+  const cached = quoteCache.get(symbol);
+  const now = Date.now();
+  if (cached && now - cached.at < QUOTE_TTL_MS) return cached.quote;
+  const fresh = await fetchOneFresh(symbol, label);
+  // If fetch failed but we have a stale cached quote, prefer it (mark stale).
+  if (fresh.error && cached) {
+    return { ...cached.quote, error: `stale (${fresh.error})` };
+  }
+  if (!fresh.error) quoteCache.set(symbol, { at: now, quote: fresh });
+  return fresh;
+}
+
+let quotesInflight: Promise<{ groups: Array<{ name: string; quotes: Quote[] }>; fetchedAt: string }> | null = null;
 
 export const fetchQuotes = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ groups: Array<{ name: string; quotes: Quote[] }>; fetchedAt: string }> => {
-    const groups = await Promise.all(
-      QUOTE_GROUPS.map(async (g) => ({
-        name: g.name,
-        quotes: await Promise.all(g.items.map((i) => fetchOne(i.symbol, i.label))),
-      })),
-    );
-    return { groups, fetchedAt: new Date().toISOString() };
+    if (quotesInflight) return quotesInflight;
+    quotesInflight = (async () => {
+      const groups: Array<{ name: string; quotes: Quote[] }> = [];
+      for (const g of QUOTE_GROUPS) {
+        const quotes: Quote[] = [];
+        for (const i of g.items) {
+          quotes.push(await fetchOne(i.symbol, i.label));
+          await sleep(60); // gentle pacing across ~24 symbols
+        }
+        groups.push({ name: g.name, quotes });
+      }
+      return { groups, fetchedAt: new Date().toISOString() };
+    })();
+    try {
+      return await quotesInflight;
+    } finally {
+      quotesInflight = null;
+    }
   },
 );
