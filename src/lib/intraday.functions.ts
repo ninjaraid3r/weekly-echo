@@ -8,16 +8,31 @@ export type IntradayResult = {
   fetchedAt: string;
 };
 
-async function fetchYahoo(url: string): Promise<Bar[]> {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-      Accept: "application/json",
-    },
-  });
-  if (!res.ok) throw new Error(`Yahoo ${res.status}`);
-  const json = (await res.json()) as any;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function fetchYahoo(path: string): Promise<Bar[]> {
+  const hosts = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"];
+  let lastErr = "failed";
+  let json: any = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const url = `https://${hosts[attempt % hosts.length]}${path}`;
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        Accept: "application/json",
+      },
+    });
+    if (res.status === 429) {
+      lastErr = "Yahoo 429";
+      await sleep(500 * (attempt + 1));
+      continue;
+    }
+    if (!res.ok) throw new Error(`Yahoo ${res.status}`);
+    json = await res.json();
+    break;
+  }
+  if (!json) throw new Error(lastErr);
   const result = json?.chart?.result?.[0];
   if (!result) return [];
   const ts: number[] = result.timestamp ?? [];
@@ -40,22 +55,42 @@ async function fetchYahoo(url: string): Promise<Bar[]> {
   return out;
 }
 
+// Per-symbol cache: intraday refreshes at most once/2min, daily once/hour.
+const cache = new Map<string, { at: number; result: IntradayResult }>();
+const inflight = new Map<string, Promise<IntradayResult>>();
+const INTRADAY_TTL_MS = 120_000;
+
 export const fetchIntraday = createServerFn({ method: "GET" })
   .inputValidator((d: { symbol: string }) => d)
   .handler(async ({ data }): Promise<IntradayResult> => {
-    const s = encodeURIComponent(data.symbol);
-    const [bars, dailyBars] = await Promise.all([
-      fetchYahoo(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=5m&range=5d`,
-      ),
-      fetchYahoo(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1mo`,
-      ),
-    ]);
-    return {
-      symbol: data.symbol,
-      bars,
-      dailyBars,
-      fetchedAt: new Date().toISOString(),
-    };
+    const now = Date.now();
+    const cached = cache.get(data.symbol);
+    if (cached && now - cached.at < INTRADAY_TTL_MS) return cached.result;
+    const existing = inflight.get(data.symbol);
+    if (existing) return existing;
+
+    const p = (async () => {
+      const s = encodeURIComponent(data.symbol);
+      try {
+        // Sequenced (not parallel) to reduce 429 pressure
+        const bars = await fetchYahoo(`/v8/finance/chart/${s}?interval=5m&range=5d`);
+        await sleep(150);
+        const dailyBars = await fetchYahoo(`/v8/finance/chart/${s}?interval=1d&range=1mo`);
+        const result: IntradayResult = {
+          symbol: data.symbol,
+          bars,
+          dailyBars,
+          fetchedAt: new Date().toISOString(),
+        };
+        cache.set(data.symbol, { at: Date.now(), result });
+        return result;
+      } catch (e) {
+        if (cached) return cached.result; // serve stale on error
+        throw e;
+      } finally {
+        inflight.delete(data.symbol);
+      }
+    })();
+    inflight.set(data.symbol, p);
+    return p;
   });
