@@ -1,6 +1,6 @@
 import type { Bar } from "@/lib/intraday.functions";
 
-export type SessionKey = "asia" | "london" | "nyam" | "lunch" | "nypm" | "power";
+export type SessionKey = "asia" | "london" | "nyam" | "lunch" | "nypm";
 
 export type SessionDef = {
   key: SessionKey;
