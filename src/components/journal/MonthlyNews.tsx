@@ -167,34 +167,24 @@ export function MonthlyNews() {
                   >
                     {format(d, "d")}
                   </span>
-                  <div className="flex items-center gap-1">
-                    {hasJournal && (
-                      <PenLine
-                        className="size-3 text-primary"
-                        aria-label="Has journal entry"
-                      />
-                    )}
-                    {critical && (
-                      <span className="text-[9px] font-semibold uppercase tracking-wider text-primary">
-                        Key
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {(["high", "medium", "low"] as Impact[]).map((imp) =>
-                    counts[imp] > 0 ? (
-                      <span
-                        key={imp}
-                        className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold text-background"
-                        style={{ background: IMPACT_VAR[imp] }}
-                        title={`${counts[imp]} ${imp} impact`}
-                      >
-                        <span className="size-1.5 rounded-full bg-background/80" />
-                        {counts[imp]}
-                      </span>
-                    ) : null
+                  {hasJournal && (
+                    <PenLine
+                      className="size-3 text-primary"
+                      aria-label="Has journal entry"
+                    />
                   )}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {events.map((e, idx) => (
+                    <span
+                      key={`${e.date}-${idx}`}
+                      className="inline-block size-2.5 rounded-full ring-1 ring-black/10"
+                      style={{
+                        background: e.critical ? "#22c55e" : IMPACT_VAR[e.impact],
+                      }}
+                      title={`${e.critical ? "Key • " : ""}${e.impact} impact${e.title ? ` — ${e.title}` : ""}`}
+                    />
+                  ))}
                 </div>
                 {marketEvents.length > 0 && (
                   <div className="mt-1.5 space-y-0.5">
@@ -238,10 +228,7 @@ function Legend() {
       <LegendDot color="var(--impact-high)" label="High impact" />
       <LegendDot color="var(--impact-medium)" label="Medium" />
       <LegendDot color="var(--impact-low)" label="Low" />
-      <span className="flex items-center gap-2">
-        <span className="inline-block size-3 rounded-sm ring-2 ring-primary bg-primary/10" />
-        Key release (FOMC, CPI, NFP, PPI...)
-      </span>
+      <LegendDot color="#22c55e" label="Key release (FOMC, CPI, NFP, PPI…)" />
     </div>
   );
 }
