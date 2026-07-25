@@ -17,9 +17,8 @@ export const SESSIONS: SessionDef[] = [
   { key: "asia", label: "Asia", startMin: 18 * 60, endMin: 24 * 60 + 1 * 60 + 30, prevDay: true, color: "#ef4444" },
   { key: "london", label: "London", startMin: 1 * 60 + 30, endMin: 8 * 60, color: "#3b82f6" },
   { key: "nyam", label: "NY AM", startMin: 9 * 60 + 30, endMin: 11 * 60 + 30, color: "#22c55e" },
-  { key: "lunch", label: "Lunch", startMin: 11 * 60 + 30, endMin: 13 * 60 + 30, color: "#94a3b8" },
-  { key: "nypm", label: "NY PM", startMin: 13 * 60 + 30, endMin: 15 * 60, color: "#14b8a6" },
-  { key: "power", label: "Power Hour", startMin: 15 * 60, endMin: 16 * 60, color: "#facc15" },
+  { key: "lunch", label: "Lunch", startMin: 11 * 60 + 30, endMin: 13 * 60 + 30, color: "#f97316" },
+  { key: "nypm", label: "NY PM", startMin: 13 * 60 + 30, endMin: 16 * 60, color: "#a855f7" },
 ];
 
 /** ET-adjusted date parts for a given epoch ms. */
