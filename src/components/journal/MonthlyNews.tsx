@@ -182,7 +182,7 @@ export function MonthlyNews() {
                       style={{
                         background: e.critical ? "#22c55e" : IMPACT_VAR[e.impact],
                       }}
-                      title={`${e.critical ? "Key • " : ""}${e.impact} impact${e.title ? ` — ${e.title}` : ""}`}
+                      title={`${e.critical ? "Key • " : ""}${e.impact} impact${e.name ? ` — ${e.name}` : ""}`}
                     />
                   ))}
                 </div>
