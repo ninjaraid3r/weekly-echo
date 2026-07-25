@@ -135,16 +135,6 @@ export function MonthlyNews() {
           {days.map((d) => {
             const key = fmtDate(d);
             const events = byDate.get(key) ?? [];
-            const counts: Record<Impact, number> = {
-              high: 0,
-              medium: 0,
-              low: 0,
-            };
-            let critical = false;
-            for (const e of events) {
-              counts[e.impact]++;
-              if (e.critical) critical = true;
-            }
             const inMonth = isSameMonth(d, cursor);
             const today = isToday(d);
             const hasJournal = journals.has(key);
@@ -155,7 +145,7 @@ export function MonthlyNews() {
                 onClick={() => setOpenDate(key)}
                 className={`relative text-left min-h-24 p-2 border-b border-r border-border transition-colors hover:bg-accent/40 ${
                   inMonth ? "bg-transparent" : "bg-background/40 opacity-60"
-                } ${critical ? "ring-2 ring-inset ring-primary/70 bg-primary/5" : ""}`}
+                }`}
               >
                 <div className="flex items-center justify-between">
                   <span
