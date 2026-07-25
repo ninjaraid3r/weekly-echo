@@ -34,6 +34,12 @@ function SymbolBlock({ symbol, label }: { symbol: string; label: string }) {
   const ranges = data ? computeSessionRanges(data.bars, day) : [];
   const now = Date.now();
 
+  const textColorFor = (key: string, defaultColor: string) => {
+    if (key === "nypm") return "#a855f7"; // purple
+    if (key === "lunch") return "#f97316"; // orange
+    return defaultColor;
+  };
+
   return (
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
       <div className="flex items-center justify-between">
@@ -45,6 +51,8 @@ function SymbolBlock({ symbol, label }: { symbol: string; label: string }) {
           const started = now >= r.startMs;
           const done = now >= r.endMs;
           const dot = done ? "bg-muted-foreground/40" : started ? "" : "bg-transparent border border-dashed border-border";
+          const labelColor = textColorFor(r.key, r.color);
+          const isNyam = r.key === "nyam";
           return (
             <li
               key={r.key}
@@ -54,15 +62,15 @@ function SymbolBlock({ symbol, label }: { symbol: string; label: string }) {
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span
                     className={`size-2 rounded-full shrink-0 ${dot}`}
-                    style={started && !done ? { background: r.color, boxShadow: `0 0 6px ${r.color}` } : started ? undefined : undefined}
+                    style={started && !done ? { background: labelColor, boxShadow: `0 0 6px ${labelColor}` } : undefined}
                   />
-                  <span className="text-[11px] font-semibold" style={{ color: r.color }}>{r.label}</span>
+                  <span className="text-[11px] font-semibold" style={{ color: labelColor }}>{r.label}</span>
                   <span className="text-[10px] text-muted-foreground truncate">
                     {timeStr(r.startMs)}–{timeStr(r.endMs)}
                   </span>
                 </div>
               </div>
-              <div className="mt-1 grid grid-cols-2 gap-x-3 text-[10px] font-mono tabular-nums">
+              <div className={`mt-1 grid ${isNyam ? "grid-cols-2" : "grid-cols-1"} gap-x-3 text-[10px] font-mono tabular-nums`}>
                 <div>
                   <div className="text-muted-foreground">Session H/L</div>
                   <div>
@@ -71,14 +79,16 @@ function SymbolBlock({ symbol, label }: { symbol: string; label: string }) {
                     <span className="text-red-600">{fmt(r.low)}</span>
                   </div>
                 </div>
-                <div>
-                  <div className="text-muted-foreground">OR (30m) H/L</div>
+                {isNyam && (
                   <div>
-                    <span className="text-emerald-600">{fmt(r.orHigh)}</span>
-                    <span className="text-muted-foreground"> / </span>
-                    <span className="text-red-600">{fmt(r.orLow)}</span>
+                    <div style={{ color: "#06b6d4" }}>NYAM OR (30m) H/L</div>
+                    <div>
+                      <span style={{ color: "#06b6d4" }}>{fmt(r.orHigh)}</span>
+                      <span className="text-muted-foreground"> / </span>
+                      <span style={{ color: "#06b6d4" }}>{fmt(r.orLow)}</span>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </li>
           );
