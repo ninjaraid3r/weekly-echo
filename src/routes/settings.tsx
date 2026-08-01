@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { testFredConnection } from "@/lib/fred.functions";
 import { getStoredFredKey, setStoredFredKey } from "@/lib/use-fred-events";
+import { testAlphaVantage } from "@/lib/options.functions";
+import { getStoredAvKey, setStoredAvKey } from "@/lib/alphavantage-storage";
 import { loadFeeds, addFeed, removeFeed, type RssFeed } from "@/lib/rss-storage";
 import {
   loadPrefs,
@@ -57,8 +59,15 @@ function SettingsPage() {
   const [feedError, setFeedError] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<UserPrefs>(DEFAULT_PREFS);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [avKey, setAvKey] = useState("");
+  const [avSaved, setAvSaved] = useState(false);
+  const [avTesting, setAvTesting] = useState(false);
+  const [avResult, setAvResult] = useState<{ type: "success" | "error"; message: string } | null>(
+    null,
+  );
 
   const testFn = useServerFn(testFredConnection);
+  const avTestFn = useServerFn(testAlphaVantage);
 
   useEffect(() => {
     const stored = getStoredFredKey();
@@ -68,7 +77,35 @@ function SettingsPage() {
     }
     setFeeds(loadFeeds());
     setPrefs(loadPrefs());
+    const av = getStoredAvKey();
+    if (av) {
+      setAvKey(av);
+      setAvSaved(true);
+    }
   }, []);
+
+  const handleAvSave = () => {
+    setStoredAvKey(avKey.trim());
+    setAvSaved(true);
+    setAvResult(null);
+  };
+
+  const handleAvTest = async () => {
+    if (!avKey.trim()) return;
+    setAvTesting(true);
+    setAvResult(null);
+    try {
+      const r = await avTestFn({ data: { apiKey: avKey.trim() } });
+      setAvResult({ type: r.ok ? "success" : "error", message: r.message });
+    } catch (e) {
+      setAvResult({
+        type: "error",
+        message: e instanceof Error ? e.message : "Connection failed.",
+      });
+    } finally {
+      setAvTesting(false);
+    }
+  };
 
   const updatePref = <K extends keyof UserPrefs>(k: K, v: UserPrefs[K]) => {
     const next = { ...prefs, [k]: v };
