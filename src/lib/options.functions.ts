@@ -8,6 +8,7 @@ export type ExpiryStat = {
   putOI: number;
   pcVolume: number | null;
   pcOI: number | null;
+  avgIV: number | null;
 };
 
 export type OptionsSnapshot = {
@@ -67,8 +68,14 @@ function summarize(symbol: string, rows: any[], live: boolean, note?: string): O
     const exp = String(r.expiration ?? "");
     let e = byExp.get(exp);
     if (!e) {
-      e = { expiration: exp, callVolume: 0, putVolume: 0, callOI: 0, putOI: 0, pcVolume: null, pcOI: null };
+      e = { expiration: exp, callVolume: 0, putVolume: 0, callOI: 0, putOI: 0, pcVolume: null, pcOI: null, avgIV: null };
       byExp.set(exp, e);
+      ivByExp.set(exp, { sum: 0, n: 0 });
+    }
+    if (iv > 0) {
+      const acc = ivByExp.get(exp)!;
+      acc.sum += iv;
+      acc.n++;
     }
     if (isPut) {
       putVolume += vol;
@@ -96,6 +103,9 @@ function summarize(symbol: string, rows: any[], live: boolean, note?: string): O
       ...e,
       pcVolume: e.callVolume > 0 ? e.putVolume / e.callVolume : null,
       pcOI: e.callOI > 0 ? e.putOI / e.callOI : null,
+      avgIV: (ivByExp.get(e.expiration)?.n ?? 0) > 0
+        ? ivByExp.get(e.expiration)!.sum / ivByExp.get(e.expiration)!.n
+        : null,
     }))
     .sort((a, b) => a.expiration.localeCompare(b.expiration))
     .slice(0, 8);

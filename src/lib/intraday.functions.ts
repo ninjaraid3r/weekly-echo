@@ -28,11 +28,19 @@ async function fetchYahoo(path: string): Promise<Bar[]> {
       await sleep(500 * (attempt + 1));
       continue;
     }
-    if (!res.ok) throw new Error(`Yahoo ${res.status}`);
+    if (!res.ok) {
+      lastErr = `Yahoo ${res.status}`;
+      await sleep(300 * (attempt + 1));
+      continue;
+    }
     json = await res.json();
     break;
   }
-  if (!json) throw new Error(lastErr);
+  // Never throw on upstream rate limiting — callers fall back to cache/empty.
+  if (!json) {
+    console.warn(`[intraday] ${lastErr}`);
+    return [];
+  }
   const result = json?.chart?.result?.[0];
   if (!result) return [];
   const ts: number[] = result.timestamp ?? [];
@@ -86,7 +94,8 @@ export const fetchIntraday = createServerFn({ method: "GET" })
         return result;
       } catch (e) {
         if (cached) return cached.result; // serve stale on error
-        throw e;
+        console.warn("[intraday] fetch failed", e);
+        return { symbol: data.symbol, bars: [], dailyBars: [], fetchedAt: new Date().toISOString() };
       } finally {
         inflight.delete(data.symbol);
       }

@@ -51,6 +51,16 @@ export function etTradingDay(now = Date.now()): string {
   return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
 }
 
+/** Most recent Friday (ET) as yyyy-mm-dd; returns today when today is Friday. */
+export function lastFridayTradingDay(now = Date.now()): string {
+  const p = etParts(now);
+  const d = new Date(Date.UTC(p.year, p.month - 1, p.day));
+  const dow = d.getUTCDay(); // 0 Sun … 5 Fri
+  const back = (dow - 5 + 7) % 7;
+  d.setUTCDate(d.getUTCDate() - back);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
 /** Ms epoch for a given ET date + minute-of-day, adjusting for DST. */
 export function etDateTimeToMs(dateYmd: string, minuteOfDay: number): number {
   // Binary-search approach avoided; use direct offset lookup via Intl.
