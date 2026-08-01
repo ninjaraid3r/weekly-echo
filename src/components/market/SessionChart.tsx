@@ -281,7 +281,8 @@ function SymbolChart({ symbol, label, day }: { symbol: string; label: string; da
 export function SessionChart() {
   const today = etTradingDay();
   const friday = lastFridayTradingDay();
-  const [day, setDay] = useState<string>(today);
+  // Weekends have no bars — default to the last Friday's full trading day.
+  const [day, setDay] = useState<string>(today === friday ? today : friday);
 
   return (
     <section className="space-y-3">
