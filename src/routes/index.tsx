@@ -6,6 +6,7 @@ import { RssFeed } from "@/components/dashboard/RssFeed";
 import { TickerGrid } from "@/components/market/TickerGrid";
 import { SessionChart } from "@/components/market/SessionChart";
 import { SessionRangesCard } from "@/components/market/SessionRangesCard";
+import { OptionsFlow } from "@/components/market/OptionsFlow";
 import { LayoutDashboard } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -53,6 +54,8 @@ function Index() {
         <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
         <SessionChart />
         <SessionRangesCard />
+        <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+        <OptionsFlow />
         <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
         <WeeklySummary />
         <WeeklyKanban />

@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { testFredConnection } from "@/lib/fred.functions";
 import { getStoredFredKey, setStoredFredKey } from "@/lib/use-fred-events";
+import { testAlphaVantage } from "@/lib/options.functions";
+import { getStoredAvKey, setStoredAvKey } from "@/lib/alphavantage-storage";
 import { loadFeeds, addFeed, removeFeed, type RssFeed } from "@/lib/rss-storage";
 import {
   loadPrefs,
@@ -57,8 +59,15 @@ function SettingsPage() {
   const [feedError, setFeedError] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<UserPrefs>(DEFAULT_PREFS);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [avKey, setAvKey] = useState("");
+  const [avSaved, setAvSaved] = useState(false);
+  const [avTesting, setAvTesting] = useState(false);
+  const [avResult, setAvResult] = useState<{ type: "success" | "error"; message: string } | null>(
+    null,
+  );
 
   const testFn = useServerFn(testFredConnection);
+  const avTestFn = useServerFn(testAlphaVantage);
 
   useEffect(() => {
     const stored = getStoredFredKey();
@@ -68,7 +77,35 @@ function SettingsPage() {
     }
     setFeeds(loadFeeds());
     setPrefs(loadPrefs());
+    const av = getStoredAvKey();
+    if (av) {
+      setAvKey(av);
+      setAvSaved(true);
+    }
   }, []);
+
+  const handleAvSave = () => {
+    setStoredAvKey(avKey.trim());
+    setAvSaved(true);
+    setAvResult(null);
+  };
+
+  const handleAvTest = async () => {
+    if (!avKey.trim()) return;
+    setAvTesting(true);
+    setAvResult(null);
+    try {
+      const r = await avTestFn({ data: { apiKey: avKey.trim() } });
+      setAvResult({ type: r.ok ? "success" : "error", message: r.message });
+    } catch (e) {
+      setAvResult({
+        type: "error",
+        message: e instanceof Error ? e.message : "Connection failed.",
+      });
+    } finally {
+      setAvTesting(false);
+    }
+  };
 
   const updatePref = <K extends keyof UserPrefs>(k: K, v: UserPrefs[K]) => {
     const next = { ...prefs, [k]: v };
@@ -384,6 +421,108 @@ function SettingsPage() {
               className="inline-flex items-center gap-1 text-primary hover:text-primary/80 transition-colors"
             >
               Get your free FRED API key
+              <ExternalLink className="size-3" />
+            </a>
+          </div>
+        </section>
+
+        {/* Alpha Vantage API Key Card */}
+        <section className="rounded-xl border border-border bg-card p-6 space-y-5">
+          <div className="flex items-start gap-3">
+            <span className="grid place-items-center size-10 rounded-lg bg-sky-500/10 text-sky-600 border border-sky-500/20 shrink-0">
+              <KeyRound className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-card-foreground">
+                Alpha Vantage API Key
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Powers the options chain and put/call ratio panel on the dashboard.
+                Realtime options require a premium plan; free keys fall back to the
+                last close chain.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="block text-xs font-medium text-muted-foreground">
+              API Key
+            </label>
+            <input
+              type="password"
+              value={avKey}
+              onChange={(e) => {
+                setAvKey(e.target.value);
+                setAvSaved(false);
+                setAvResult(null);
+              }}
+              placeholder="Paste your Alpha Vantage API key here..."
+              className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring transition-shadow"
+            />
+            {avSaved && (
+              <p className="text-xs text-emerald-500 flex items-center gap-1">
+                <CheckCircle2 className="size-3.5" />
+                Key saved locally in your browser.
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleAvSave}
+              disabled={!avKey.trim()}
+              className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save Key
+            </button>
+            <button
+              onClick={handleAvTest}
+              disabled={!avKey.trim() || avTesting}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {avTesting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Testing…
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="size-4" />
+                  Test Connection
+                </>
+              )}
+            </button>
+          </div>
+
+          {avResult && (
+            <div
+              className={`rounded-lg border px-4 py-3 text-sm flex items-start gap-2 ${
+                avResult.type === "success"
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600"
+                  : "border-red-500/30 bg-red-500/10 text-red-500"
+              }`}
+            >
+              {avResult.type === "success" ? (
+                <CheckCircle2 className="size-4 mt-0.5 shrink-0" />
+              ) : (
+                <XCircle className="size-4 mt-0.5 shrink-0" />
+              )}
+              {avResult.message}
+            </div>
+          )}
+
+          <div className="rounded-lg border border-border bg-muted/40 p-4 text-xs text-muted-foreground space-y-2">
+            <div className="flex items-center gap-1.5 font-medium text-foreground">
+              <Info className="size-3.5" />
+              Don&apos;t have an Alpha Vantage key?
+            </div>
+            <a
+              href="https://www.alphavantage.co/support/#api-key"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-primary hover:text-primary/80 transition-colors"
+            >
+              Get your free Alpha Vantage API key
               <ExternalLink className="size-3" />
             </a>
           </div>
