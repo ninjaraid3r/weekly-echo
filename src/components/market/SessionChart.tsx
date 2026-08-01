@@ -1,21 +1,28 @@
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
+import { ClientOnly } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { fetchIntraday } from "@/lib/intraday.functions";
+import { fetchOptionsSnapshot } from "@/lib/options.functions";
+import { getStoredAvKey } from "@/lib/alphavantage-storage";
 import {
   computeSessionRanges,
   etTradingDay,
+  lastFridayTradingDay,
   etDateTimeToMs,
   type SessionRange,
 } from "@/lib/session-analysis";
+import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import type { PriceLine } from "./SpxLineChart";
 
-const CHOICES = [
-  { symbol: "^GSPC", label: "SPX" },
+const SpxLineChart = lazy(() => import("./SpxLineChart"));
+
+const FUTURES = [
   { symbol: "ES=F", label: "ES" },
   { symbol: "NQ=F", label: "NQ" },
+  { symbol: "YM=F", label: "YM" },
 ];
 
-// Override colors for lunch (orange) and NY PM (purple).
 const SESSION_COLOR: Record<string, string> = {
   asia: "#ef4444",
   london: "#3b82f6",
@@ -38,22 +45,107 @@ function fmtTime(ms: number): string {
   }).format(new Date(ms));
 }
 
-function SymbolChart({ symbol, label }: { symbol: string; label: string }) {
-  const day = etTradingDay();
+function useDayData(symbol: string, day: string) {
   const { data, isLoading } = useQuery({
     queryKey: ["intraday", symbol],
     queryFn: () => fetchIntraday({ data: { symbol } }),
     refetchInterval: 60_000,
     staleTime: 45_000,
   });
-
-  const analysis = useMemo(() => {
-    if (!data) return null;
+  return useMemo(() => {
+    if (!data) return { isLoading, analysis: null, bars: [] as typeof data extends never ? never : any[] };
     const ranges = computeSessionRanges(data.bars, day);
     const chartStart = ranges.find((r) => r.key === "asia")!.startMs;
     const chartEnd = etDateTimeToMs(day, 16 * 60);
-    return { ranges, chartStart, chartEnd };
-  }, [data, day]);
+    const bars = data.bars.filter((b) => b.t >= chartStart && b.t <= chartEnd);
+    return { isLoading, analysis: { ranges, chartStart, chartEnd }, bars };
+  }, [data, day, isLoading]);
+}
+
+/** SPX — embedded lightweight line chart with session lines + options expected move. */
+function SpxChart({ day }: { day: string }) {
+  const { analysis, bars, isLoading } = useDayData("^GSPC", day);
+  const avKey = typeof window !== "undefined" ? getStoredAvKey() : null;
+
+  const { data: opts } = useQuery({
+    queryKey: ["options-em", "SPY"],
+    queryFn: () => fetchOptionsSnapshot({ data: { symbol: "SPY", apiKey: avKey ?? "" } }),
+    enabled: !!avKey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const lastClose = bars.length ? bars[bars.length - 1].c : null;
+
+  const expectedMove = useMemo(() => {
+    if (!opts || lastClose == null) return null;
+    const exp = opts.expirations.find((e) => e.avgIV != null);
+    if (!exp || exp.avgIV == null) return null;
+    const days = Math.max(
+      1,
+      Math.round((new Date(exp.expiration + "T20:00:00Z").getTime() - Date.now()) / 86_400_000),
+    );
+    const move = lastClose * exp.avgIV * Math.sqrt(days / 365);
+    if (!Number.isFinite(move) || move <= 0) return null;
+    return { move, expiration: exp.expiration, pc: exp.pcVolume, iv: exp.avgIV };
+  }, [opts, lastClose]);
+
+  const priceLines = useMemo<PriceLine[]>(() => {
+    if (!analysis) return [];
+    const lines: PriceLine[] = [];
+    for (const r of analysis.ranges as SessionRange[]) {
+      const color = SESSION_COLOR[r.key] ?? "#64748b";
+      if (r.high != null) lines.push({ price: r.high, color, title: `${r.label} H` });
+      if (r.low != null) lines.push({ price: r.low, color, title: `${r.label} L` });
+      if (r.key === "nyam") {
+        if (r.orHigh != null) lines.push({ price: r.orHigh, color: "#06b6d4", title: "NYAM OR H", dashed: true });
+        if (r.orLow != null) lines.push({ price: r.orLow, color: "#06b6d4", title: "NYAM OR L", dashed: true });
+      }
+    }
+    if (expectedMove && lastClose != null) {
+      lines.push({ price: lastClose + expectedMove.move, color: "#7c3aed", title: "EM +", dashed: true });
+      lines.push({ price: lastClose - expectedMove.move, color: "#7c3aed", title: "EM −", dashed: true });
+    }
+    return lines;
+  }, [analysis, expectedMove, lastClose]);
+
+  const points = useMemo(() => bars.map((b: any) => ({ t: b.t, c: b.c })), [bars]);
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-3">
+      <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+        <span className="text-sm font-semibold">SPX</span>
+        <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground">
+          {isLoading && <Loader2 className="size-3 animate-spin" />}
+          {expectedMove ? (
+            <span style={{ color: "#7c3aed" }}>
+              Expected move ±{fmt(expectedMove.move)} · {expectedMove.expiration} · IV{" "}
+              {(expectedMove.iv * 100).toFixed(1)}%
+              {expectedMove.pc != null ? ` · P/C ${expectedMove.pc.toFixed(2)}` : ""}
+            </span>
+          ) : (
+            <span>{avKey ? "Options data unavailable" : "Add an Alpha Vantage key in Settings for options expected move"}</span>
+          )}
+        </div>
+      </div>
+      {points.length === 0 ? (
+        <div className="h-[300px] flex items-center justify-center text-xs text-muted-foreground">
+          {isLoading ? "Loading…" : "No data"}
+        </div>
+      ) : (
+        <ClientOnly fallback={<div className="h-[300px]" />}>
+          <Suspense fallback={<div className="h-[300px]" />}>
+            <SpxLineChart points={points} priceLines={priceLines} height={300} />
+          </Suspense>
+        </ClientOnly>
+      )}
+    </div>
+  );
+}
+
+/** Futures — horizontal session H/L line charts (time on X, price on right Y). */
+function SymbolChart({ symbol, label, day }: { symbol: string; label: string; day: string }) {
+  const { analysis, isLoading } = useDayData(symbol, day);
 
   const W = 900;
   const H = 300;
@@ -123,57 +215,24 @@ function SymbolChart({ symbol, label }: { symbol: string; label: string }) {
         </div>
       ) : (
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[260px] block">
-          {/* Y grid + right-side price labels */}
           {priceTicks.map((v) => (
             <g key={`y${v}`}>
-              <line
-                x1={padL}
-                x2={W - padR}
-                y1={yScale(v)}
-                y2={yScale(v)}
-                stroke="currentColor"
-                className="text-border"
-                strokeWidth={0.5}
-                opacity={0.4}
-              />
-              <text
-                x={W - padR + 6}
-                y={yScale(v) + 3}
-                textAnchor="start"
-                className="fill-muted-foreground"
-                style={{ fontSize: 10, fontFamily: "ui-monospace, monospace" }}
-              >
+              <line x1={padL} x2={W - padR} y1={yScale(v)} y2={yScale(v)} stroke="currentColor" className="text-border" strokeWidth={0.5} opacity={0.4} />
+              <text x={W - padR + 6} y={yScale(v) + 3} textAnchor="start" className="fill-muted-foreground" style={{ fontSize: 10, fontFamily: "ui-monospace, monospace" }}>
                 {fmt(v)}
               </text>
             </g>
           ))}
 
-          {/* X time ticks */}
           {timeTicks.map((t) => (
             <g key={`x${t}`}>
-              <line
-                x1={xScale(t)}
-                x2={xScale(t)}
-                y1={padT}
-                y2={H - padB}
-                stroke="currentColor"
-                className="text-border"
-                strokeWidth={0.5}
-                opacity={0.3}
-              />
-              <text
-                x={xScale(t)}
-                y={H - padB + 14}
-                textAnchor="middle"
-                className="fill-muted-foreground"
-                style={{ fontSize: 10, fontFamily: "ui-monospace, monospace" }}
-              >
+              <line x1={xScale(t)} x2={xScale(t)} y1={padT} y2={H - padB} stroke="currentColor" className="text-border" strokeWidth={0.5} opacity={0.3} />
+              <text x={xScale(t)} y={H - padB + 14} textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: 10, fontFamily: "ui-monospace, monospace" }}>
                 {fmtTime(t)}
               </text>
             </g>
           ))}
 
-          {/* Session H/L horizontal segments (only across the session window) */}
           {analysis.ranges.map((r: SessionRange) => {
             const color = SESSION_COLOR[r.key] ?? "#64748b";
             const x1 = xScale(Math.max(r.startMs, analysis.chartStart));
@@ -196,27 +255,10 @@ function SymbolChart({ symbol, label }: { symbol: string; label: string }) {
                     </text>
                   </>
                 )}
-                {/* NYAM Opening Range (30m) in cyan */}
                 {r.key === "nyam" && r.orHigh != null && r.orLow != null && (
                   <>
-                    <line
-                      x1={x1}
-                      x2={xScale(Math.min(r.startMs + 30 * 60_000, analysis.chartEnd))}
-                      y1={yScale(r.orHigh)}
-                      y2={yScale(r.orHigh)}
-                      stroke="#06b6d4"
-                      strokeWidth={1.5}
-                      strokeDasharray="4 3"
-                    />
-                    <line
-                      x1={x1}
-                      x2={xScale(Math.min(r.startMs + 30 * 60_000, analysis.chartEnd))}
-                      y1={yScale(r.orLow)}
-                      y2={yScale(r.orLow)}
-                      stroke="#06b6d4"
-                      strokeWidth={1.5}
-                      strokeDasharray="4 3"
-                    />
+                    <line x1={x1} x2={xScale(Math.min(r.startMs + 30 * 60_000, analysis.chartEnd))} y1={yScale(r.orHigh)} y2={yScale(r.orHigh)} stroke="#06b6d4" strokeWidth={1.5} strokeDasharray="4 3" />
+                    <line x1={x1} x2={xScale(Math.min(r.startMs + 30 * 60_000, analysis.chartEnd))} y1={yScale(r.orLow)} y2={yScale(r.orLow)} stroke="#06b6d4" strokeWidth={1.5} strokeDasharray="4 3" />
                     <text x={x1 + 4} y={yScale(r.orHigh) - 3} fill="#06b6d4" style={{ fontSize: 10, fontFamily: "ui-monospace, monospace" }}>
                       NYAM OR H {fmt(r.orHigh)}
                     </text>
@@ -229,17 +271,7 @@ function SymbolChart({ symbol, label }: { symbol: string; label: string }) {
             );
           })}
 
-          {/* Plot border */}
-          <rect
-            x={padL}
-            y={padT}
-            width={plotW}
-            height={plotH}
-            fill="none"
-            stroke="currentColor"
-            className="text-border"
-            strokeWidth={0.75}
-          />
+          <rect x={padL} y={padT} width={plotW} height={plotH} fill="none" stroke="currentColor" className="text-border" strokeWidth={0.75} />
         </svg>
       )}
     </div>
@@ -247,17 +279,32 @@ function SymbolChart({ symbol, label }: { symbol: string; label: string }) {
 }
 
 export function SessionChart() {
+  const today = etTradingDay();
+  const friday = lastFridayTradingDay();
+  const [day, setDay] = useState<string>(today);
+
   return (
     <section className="space-y-3">
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">Session Chart</h2>
-        <p className="text-xs text-muted-foreground">
-          Session highs &amp; lows with prices. NYAM Opening Range in cyan.
-        </p>
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">Session Chart</h2>
+          <p className="text-xs text-muted-foreground">
+            Time on X, price on Y. Session highs &amp; lows, NYAM Opening Range in cyan, SPX expected move from options.
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" variant={day === today ? "default" : "outline"} onClick={() => setDay(today)}>
+            Today
+          </Button>
+          <Button size="sm" variant={day === friday ? "default" : "outline"} onClick={() => setDay(friday)}>
+            Friday ({friday.slice(5)})
+          </Button>
+        </div>
       </div>
       <div className="grid grid-cols-1 gap-3">
-        {CHOICES.map((c) => (
-          <SymbolChart key={c.symbol} symbol={c.symbol} label={c.label} />
+        <SpxChart day={day} />
+        {FUTURES.map((c) => (
+          <SymbolChart key={c.symbol} symbol={c.symbol} label={c.label} day={day} />
         ))}
       </div>
     </section>
