@@ -59,6 +59,7 @@ function summarize(symbol: string, rows: any[], live: boolean, note?: string): O
     putIVSum = 0,
     putIVn = 0;
   const byExp = new Map<string, ExpiryStat>();
+  const ivByExp = new Map<string, { sum: number; n: number }>();
 
   for (const r of rows) {
     const isPut = String(r.type ?? "").toLowerCase() === "put";
