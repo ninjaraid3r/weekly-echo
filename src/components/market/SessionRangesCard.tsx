@@ -7,6 +7,7 @@ const SYMBOLS = [
   { symbol: "^GSPC", label: "SPX" },
   { symbol: "ES=F", label: "ES" },
   { symbol: "NQ=F", label: "NQ" },
+  { symbol: "YM=F", label: "YM" },
 ];
 
 function fmt(n: number | null, d = 2): string {
@@ -108,7 +109,7 @@ export function SessionRangesCard() {
           Full range + first-30m opening range per session
         </span>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
         {SYMBOLS.map((s) => (
           <SymbolBlock key={s.symbol} {...s} />
         ))}
