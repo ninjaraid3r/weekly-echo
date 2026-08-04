@@ -67,11 +67,13 @@ const quoteCache = new Map<string, { at: number; quote: Quote }>();
 const QUOTE_TTL_MS = 45_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// query2 tolerates shared cloud IPs much better than query1 — try it first.
+const HOSTS = ["query2.finance.yahoo.com", "query1.finance.yahoo.com"];
+
 async function fetchOneFresh(symbol: string, label: string): Promise<Quote> {
-  const hosts = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"];
   let lastErr = "failed";
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const host = hosts[attempt % hosts.length];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const host = HOSTS[attempt % HOSTS.length];
     const url = `https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
     try {
       const res = await fetch(url, {
@@ -131,10 +133,13 @@ export const fetchQuotes = createServerFn({ method: "GET" }).handler(
     quotesInflight = (async () => {
       const groups: Array<{ name: string; quotes: Quote[] }> = [];
       for (const g of QUOTE_GROUPS) {
+        // Small concurrency keeps the whole grid under a few seconds
+        // without bursting hard enough to trip Yahoo's limiter.
         const quotes: Quote[] = [];
-        for (const i of g.items) {
-          quotes.push(await fetchOne(i.symbol, i.label));
-          await sleep(60); // gentle pacing across ~24 symbols
+        for (let i = 0; i < g.items.length; i += 3) {
+          const chunk = g.items.slice(i, i + 3);
+          quotes.push(...(await Promise.all(chunk.map((it) => fetchOne(it.symbol, it.label)))));
+          await sleep(80);
         }
         groups.push({ name: g.name, quotes });
       }

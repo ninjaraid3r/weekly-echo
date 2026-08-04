@@ -10,12 +10,14 @@ export type IntradayResult = {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// query1 rate-limits shared cloud IPs far more aggressively than query2.
+const HOSTS = ["query2.finance.yahoo.com", "query1.finance.yahoo.com"];
+
 async function fetchYahoo(path: string): Promise<Bar[]> {
-  const hosts = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"];
   let lastErr = "failed";
   let json: any = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const url = `https://${hosts[attempt % hosts.length]}${path}`;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const url = `https://${HOSTS[attempt % HOSTS.length]}${path}`;
     const res = await fetch(url, {
       headers: {
         "User-Agent":
