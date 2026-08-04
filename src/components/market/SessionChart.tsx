@@ -299,6 +299,8 @@ export function SessionChart() {
   const friday = lastFridayTradingDay();
   // Weekends have no bars — default to the last Friday's full trading day.
   const [day, setDay] = useState<string>(today === friday ? today : friday);
+  const [show, setShow] = useState<OverlayToggles>({ sessions: true, expectedMove: true, pcSkew: false });
+  const toggle = (k: keyof OverlayToggles) => setShow((s) => ({ ...s, [k]: !s[k] }));
 
   return (
     <section className="space-y-3">
@@ -309,7 +311,17 @@ export function SessionChart() {
             Time on X, price on Y. Session highs &amp; lows, NYAM Opening Range in cyan, SPX expected move from options.
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Button size="sm" variant={show.sessions ? "default" : "outline"} onClick={() => toggle("sessions")}>
+            <Ruler className="size-3.5" /> Session H/L
+          </Button>
+          <Button size="sm" variant={show.expectedMove ? "default" : "outline"} onClick={() => toggle("expectedMove")}>
+            <Activity className="size-3.5" /> Expected Move
+          </Button>
+          <Button size="sm" variant={show.pcSkew ? "default" : "outline"} onClick={() => toggle("pcSkew")}>
+            <Scale className="size-3.5" /> P/C Skew
+          </Button>
+          <span className="mx-1 h-5 w-px bg-border" />
           <Button size="sm" variant={day === today ? "default" : "outline"} onClick={() => setDay(today)}>
             Today
           </Button>
@@ -319,9 +331,9 @@ export function SessionChart() {
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3">
-        <SpxChart day={day} />
+        <SpxChart day={day} show={show} />
         {FUTURES.map((c) => (
-          <SymbolChart key={c.symbol} symbol={c.symbol} label={c.label} day={day} />
+          <SymbolChart key={c.symbol} symbol={c.symbol} label={c.label} day={day} show={show} />
         ))}
       </div>
     </section>
