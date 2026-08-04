@@ -12,8 +12,14 @@ import {
   type SessionRange,
 } from "@/lib/session-analysis";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Activity, Scale, Ruler } from "lucide-react";
 import type { PriceLine } from "./SpxLineChart";
+
+export type OverlayToggles = {
+  sessions: boolean;
+  expectedMove: boolean;
+  pcSkew: boolean;
+};
 
 const SpxLineChart = lazy(() => import("./SpxLineChart"));
 
@@ -63,7 +69,7 @@ function useDayData(symbol: string, day: string) {
 }
 
 /** SPX — embedded lightweight line chart with session lines + options expected move. */
-function SpxChart({ day }: { day: string }) {
+function SpxChart({ day, show }: { day: string; show: OverlayToggles }) {
   const { analysis, bars, isLoading } = useDayData("^GSPC", day);
   const avKey = typeof window !== "undefined" ? getStoredAvKey() : null;
 
@@ -93,21 +99,31 @@ function SpxChart({ day }: { day: string }) {
   const priceLines = useMemo<PriceLine[]>(() => {
     if (!analysis) return [];
     const lines: PriceLine[] = [];
-    for (const r of analysis.ranges as SessionRange[]) {
-      const color = SESSION_COLOR[r.key] ?? "#64748b";
-      if (r.high != null) lines.push({ price: r.high, color, title: `${r.label} H` });
-      if (r.low != null) lines.push({ price: r.low, color, title: `${r.label} L` });
-      if (r.key === "nyam") {
-        if (r.orHigh != null) lines.push({ price: r.orHigh, color: "#06b6d4", title: "NYAM OR H", dashed: true });
-        if (r.orLow != null) lines.push({ price: r.orLow, color: "#06b6d4", title: "NYAM OR L", dashed: true });
+    if (show.sessions) {
+      for (const r of analysis.ranges as SessionRange[]) {
+        const color = SESSION_COLOR[r.key] ?? "#64748b";
+        if (r.high != null) lines.push({ price: r.high, color, title: `${r.label} H` });
+        if (r.low != null) lines.push({ price: r.low, color, title: `${r.label} L` });
+        if (r.key === "nyam") {
+          if (r.orHigh != null) lines.push({ price: r.orHigh, color: "#06b6d4", title: "NYAM OR H", dashed: true });
+          if (r.orLow != null) lines.push({ price: r.orLow, color: "#06b6d4", title: "NYAM OR L", dashed: true });
+        }
       }
     }
-    if (expectedMove && lastClose != null) {
+    if (show.expectedMove && expectedMove && lastClose != null) {
       lines.push({ price: lastClose + expectedMove.move, color: "#7c3aed", title: "EM +", dashed: true });
       lines.push({ price: lastClose - expectedMove.move, color: "#7c3aed", title: "EM −", dashed: true });
     }
+    // Put/call-ratio skewed bands: heavier put flow pulls the projected range down.
+    if (show.pcSkew && expectedMove && lastClose != null && expectedMove.pc != null) {
+      const pc = Math.min(2.5, Math.max(0.2, expectedMove.pc));
+      const skew = (1 - pc) / (1 + pc); // >0 call-heavy, <0 put-heavy
+      const center = lastClose + expectedMove.move * skew;
+      lines.push({ price: center + expectedMove.move, color: "#db2777", title: "P/C +", dashed: true });
+      lines.push({ price: center - expectedMove.move, color: "#db2777", title: "P/C −", dashed: true });
+    }
     return lines;
-  }, [analysis, expectedMove, lastClose]);
+  }, [analysis, expectedMove, lastClose, show]);
 
   const points = useMemo(() => bars.map((b: any) => ({ t: b.t, c: b.c })), [bars]);
 
@@ -144,7 +160,7 @@ function SpxChart({ day }: { day: string }) {
 }
 
 /** Futures — horizontal session H/L line charts (time on X, price on right Y). */
-function SymbolChart({ symbol, label, day }: { symbol: string; label: string; day: string }) {
+function SymbolChart({ symbol, label, day, show }: { symbol: string; label: string; day: string; show: OverlayToggles }) {
   const { analysis, isLoading } = useDayData(symbol, day);
 
   const W = 900;
@@ -233,7 +249,7 @@ function SymbolChart({ symbol, label, day }: { symbol: string; label: string; da
             </g>
           ))}
 
-          {analysis.ranges.map((r: SessionRange) => {
+          {(show.sessions ? analysis.ranges : []).map((r: SessionRange) => {
             const color = SESSION_COLOR[r.key] ?? "#64748b";
             const x1 = xScale(Math.max(r.startMs, analysis.chartStart));
             const x2 = xScale(Math.min(r.endMs, analysis.chartEnd));
