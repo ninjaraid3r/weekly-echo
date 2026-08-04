@@ -68,7 +68,8 @@ async function fetchYahoo(path: string): Promise<Bar[]> {
 // Per-symbol cache: intraday refreshes at most once/2min, daily once/hour.
 const cache = new Map<string, { at: number; result: IntradayResult }>();
 const inflight = new Map<string, Promise<IntradayResult>>();
-const INTRADAY_TTL_MS = 120_000;
+// Longer TTL keeps us well under Yahoo's per-IP budget; UI polls every minute.
+const INTRADAY_TTL_MS = 5 * 60_000;
 
 export const fetchIntraday = createServerFn({ method: "GET" })
   .inputValidator((d: { symbol: string }) => d)
@@ -86,13 +87,16 @@ export const fetchIntraday = createServerFn({ method: "GET" })
         const bars = await fetchYahoo(`/v8/finance/chart/${s}?interval=5m&range=5d`);
         await sleep(150);
         const dailyBars = await fetchYahoo(`/v8/finance/chart/${s}?interval=1d&range=1mo`);
+        // An empty response means the upstream throttled us — keep the last
+        // good payload instead of poisoning the cache with nothing.
+        if (!bars.length && cached?.result.bars.length) return cached.result;
         const result: IntradayResult = {
           symbol: data.symbol,
           bars,
-          dailyBars,
+          dailyBars: dailyBars.length ? dailyBars : (cached?.result.dailyBars ?? []),
           fetchedAt: new Date().toISOString(),
         };
-        cache.set(data.symbol, { at: Date.now(), result });
+        if (bars.length) cache.set(data.symbol, { at: Date.now(), result });
         return result;
       } catch (e) {
         if (cached) return cached.result; // serve stale on error

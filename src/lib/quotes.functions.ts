@@ -195,15 +195,40 @@ export const fetchQuotes = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ groups: Array<{ name: string; quotes: Quote[] }>; fetchedAt: string }> => {
     if (quotesInflight) return quotesInflight;
     quotesInflight = (async () => {
+      // One batched CNBC request covers the whole grid.
+      let batch = new Map<string, Quote>();
+      try {
+        batch = await fetchCnbcQuotes();
+        const now = Date.now();
+        for (const [sym, q] of batch) quoteCache.set(sym, { at: now, quote: q });
+      } catch (e) {
+        console.warn("[quotes] CNBC batch failed", e);
+      }
+
       const groups: Array<{ name: string; quotes: Quote[] }> = [];
       for (const g of QUOTE_GROUPS) {
-        // Small concurrency keeps the whole grid under a few seconds
-        // without bursting hard enough to trip Yahoo's limiter.
         const quotes: Quote[] = [];
-        for (let i = 0; i < g.items.length; i += 3) {
-          const chunk = g.items.slice(i, i + 3);
-          quotes.push(...(await Promise.all(chunk.map((it) => fetchOne(it.symbol, it.label)))));
-          await sleep(80);
+        // Anything CNBC didn't cover falls back to Yahoo (or a cached value).
+        const missing = g.items.filter((i) => !batch.has(i.symbol));
+        const fallback = new Map<string, Quote>();
+        for (let i = 0; i < missing.length; i += 3) {
+          const chunk = missing.slice(i, i + 3);
+          const res = await Promise.all(chunk.map((it) => fetchOne(it.symbol, it.label)));
+          res.forEach((q) => fallback.set(q.symbol, q));
+          if (i + 3 < missing.length) await sleep(80);
+        }
+        for (const it of g.items) {
+          quotes.push(
+            batch.get(it.symbol) ??
+              fallback.get(it.symbol) ?? {
+                symbol: it.symbol,
+                label: it.label,
+                price: null,
+                prevClose: null,
+                currency: null,
+                error: "unavailable",
+              },
+          );
         }
         groups.push({ name: g.name, quotes });
       }
