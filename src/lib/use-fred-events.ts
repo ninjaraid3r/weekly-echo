@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import type { NewsEvent } from "./journal-storage";
 import { fetchFredEvents } from "./fred.functions";
+import { persistGet, persistSet } from "./persist";
 
 const FRED_API_KEY_STORAGE = "fred_api_key";
 
 export function getStoredFredKey(): string | null {
-  return localStorage.getItem(FRED_API_KEY_STORAGE);
+  return persistGet(FRED_API_KEY_STORAGE);
 }
 
 export function setStoredFredKey(key: string) {
-  localStorage.setItem(FRED_API_KEY_STORAGE, key);
+  persistSet(FRED_API_KEY_STORAGE, key);
 }
 
 const cache = new Map<string, NewsEvent[]>();
