@@ -33,8 +33,8 @@ export default function SpxLineChart({
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const styles = getComputedStyle(document.documentElement);
-    const text = styles.getPropertyValue("--foreground")?.trim() || "#111";
+    // lightweight-charts cannot parse oklch()/lab() color values, so use a literal.
+    const text = "#1a1a1a";
     const chart = createChart(el, {
       height,
       layout: {
