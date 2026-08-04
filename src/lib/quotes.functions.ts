@@ -61,17 +61,83 @@ export const QUOTE_GROUPS: QuoteGroup[] = [
   },
 ];
 
-// Module-level cache — the worker instance keeps quotes warm so we don't
-// hammer Yahoo (which 429s from shared cloud IPs quickly).
+// CNBC's public quote service serves every symbol in one request and does not
+// rate-limit shared cloud IPs the way Yahoo does. Yahoo stays as a fallback.
+const CNBC_SYMBOL: Record<string, string> = {
+  "^GSPC": ".SPX",
+  "ES=F": "@SP.1",
+  "NQ=F": "@ND.1",
+  "^DJI": ".DJI",
+  "RTY=F": ".RUT",
+  "GC=F": "@GC.1",
+  "SI=F": "@SI.1",
+  "HG=F": "@HG.1",
+  "PL=F": "@PL.1",
+  "CL=F": "@CL.1",
+  "NG=F": "@NG.1",
+  "ZC=F": "@C.1",
+  "ZS=F": "@S.1",
+  "HE=F": "@LH.1",
+  "BTC-USD": "BTC.CM=",
+  "ETH-USD": "ETH.CM=",
+  "SOL-USD": "SOL.CM=",
+};
+
+const cnbcSymbol = (s: string) => CNBC_SYMBOL[s] ?? s;
+
 const quoteCache = new Map<string, { at: number; quote: Quote }>();
-const QUOTE_TTL_MS = 45_000;
+const QUOTE_TTL_MS = 20_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const toNum = (v: unknown): number | null => {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v !== "string") return null;
+  const n = parseFloat(v.replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
+};
+
+async function fetchCnbcQuotes(): Promise<Map<string, Quote>> {
+  const all = QUOTE_GROUPS.flatMap((g) => g.items);
+  const symbols = all.map((i) => cnbcSymbol(i.symbol)).join("|");
+  const url =
+    "https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol" +
+    `?symbols=${encodeURIComponent(symbols)}&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json`;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) throw new Error(`CNBC ${res.status}`);
+  const json = (await res.json()) as any;
+  const rows: any[] = json?.FormattedQuoteResult?.FormattedQuote ?? [];
+  const bySymbol = new Map<string, any>();
+  for (const r of rows) if (r?.symbol) bySymbol.set(String(r.symbol), r);
+
+  const out = new Map<string, Quote>();
+  for (const item of all) {
+    const row = bySymbol.get(cnbcSymbol(item.symbol));
+    const price = toNum(row?.last ?? row?.ExtendedMktQuote?.last);
+    if (price == null) continue;
+    out.set(item.symbol, {
+      symbol: item.symbol,
+      label: item.label,
+      price,
+      prevClose: toNum(row?.previous_day_closing),
+      currency: row?.currencyCode ?? null,
+    });
+  }
+  return out;
+}
+
+// query2 tolerates shared cloud IPs much better than query1 — try it first.
+const HOSTS = ["query2.finance.yahoo.com", "query1.finance.yahoo.com"];
+
 async function fetchOneFresh(symbol: string, label: string): Promise<Quote> {
-  const hosts = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"];
   let lastErr = "failed";
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const host = hosts[attempt % hosts.length];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const host = HOSTS[attempt % HOSTS.length];
     const url = `https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
     try {
       const res = await fetch(url, {
@@ -129,12 +195,40 @@ export const fetchQuotes = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ groups: Array<{ name: string; quotes: Quote[] }>; fetchedAt: string }> => {
     if (quotesInflight) return quotesInflight;
     quotesInflight = (async () => {
+      // One batched CNBC request covers the whole grid.
+      let batch = new Map<string, Quote>();
+      try {
+        batch = await fetchCnbcQuotes();
+        const now = Date.now();
+        for (const [sym, q] of batch) quoteCache.set(sym, { at: now, quote: q });
+      } catch (e) {
+        console.warn("[quotes] CNBC batch failed", e);
+      }
+
       const groups: Array<{ name: string; quotes: Quote[] }> = [];
       for (const g of QUOTE_GROUPS) {
         const quotes: Quote[] = [];
-        for (const i of g.items) {
-          quotes.push(await fetchOne(i.symbol, i.label));
-          await sleep(60); // gentle pacing across ~24 symbols
+        // Anything CNBC didn't cover falls back to Yahoo (or a cached value).
+        const missing = g.items.filter((i) => !batch.has(i.symbol));
+        const fallback = new Map<string, Quote>();
+        for (let i = 0; i < missing.length; i += 3) {
+          const chunk = missing.slice(i, i + 3);
+          const res = await Promise.all(chunk.map((it) => fetchOne(it.symbol, it.label)));
+          res.forEach((q) => fallback.set(q.symbol, q));
+          if (i + 3 < missing.length) await sleep(80);
+        }
+        for (const it of g.items) {
+          quotes.push(
+            batch.get(it.symbol) ??
+              fallback.get(it.symbol) ?? {
+                symbol: it.symbol,
+                label: it.label,
+                price: null,
+                prevClose: null,
+                currency: null,
+                error: "unavailable",
+              },
+          );
         }
         groups.push({ name: g.name, quotes });
       }
