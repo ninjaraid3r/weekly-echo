@@ -333,10 +333,9 @@ function SymbolChart({ symbol, label, day, show }: { symbol: string; label: stri
 
 export function SessionChart() {
   const today = etTradingDay();
-  const friday = lastFridayTradingDay();
-  // Weekends have no bars — default to the last Friday's full trading day.
-  const [day, setDay] = useState<string>(today === friday ? today : friday);
-  const [show, setShow] = useState<OverlayToggles>({ sessions: true, expectedMove: true, pcSkew: false });
+  const week = currentWeekWindow();
+  const [mode, setMode] = useState<"today" | "week">("week");
+  const [show, setShow] = useState<OverlayToggles>({ sessions: true, expectedMove: true, walls: true });
   const toggle = (k: keyof OverlayToggles) => setShow((s) => ({ ...s, [k]: !s[k] }));
 
   return (
@@ -345,7 +344,8 @@ export function SessionChart() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Session Chart</h2>
           <p className="text-xs text-muted-foreground">
-            Time on X, price on Y. Session highs &amp; lows, NYAM Opening Range in cyan, SPX expected move from options.
+            Time on X, price on Y. Session highs &amp; lows, NYAM Opening Range in cyan, SPX 1-day expected move and
+            call/put walls from options.
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -355,22 +355,22 @@ export function SessionChart() {
           <Button size="sm" variant={show.expectedMove ? "default" : "outline"} onClick={() => toggle("expectedMove")}>
             <Activity className="size-3.5" /> Expected Move
           </Button>
-          <Button size="sm" variant={show.pcSkew ? "default" : "outline"} onClick={() => toggle("pcSkew")}>
-            <Scale className="size-3.5" /> P/C Skew
+          <Button size="sm" variant={show.walls ? "default" : "outline"} onClick={() => toggle("walls")}>
+            <BrickWall className="size-3.5" /> Call/Put Walls
           </Button>
           <span className="mx-1 h-5 w-px bg-border" />
-          <Button size="sm" variant={day === today ? "default" : "outline"} onClick={() => setDay(today)}>
+          <Button size="sm" variant={mode === "today" ? "default" : "outline"} onClick={() => setMode("today")}>
             Today
           </Button>
-          <Button size="sm" variant={day === friday ? "default" : "outline"} onClick={() => setDay(friday)}>
-            Friday ({friday.slice(5)})
+          <Button size="sm" variant={mode === "week" ? "default" : "outline"} onClick={() => setMode("week")}>
+            Current Week ({week.prevFriday.slice(5)} → {week.friday.slice(5)})
           </Button>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3">
-        <SpxChart day={day} show={show} />
+        <SpxChart day={today} show={show} mode={mode} />
         {FUTURES.map((c) => (
-          <SymbolChart key={c.symbol} symbol={c.symbol} label={c.label} day={day} show={show} />
+          <SymbolChart key={c.symbol} symbol={c.symbol} label={c.label} day={today} show={show} />
         ))}
       </div>
     </section>
