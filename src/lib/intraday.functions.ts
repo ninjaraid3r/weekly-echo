@@ -115,12 +115,15 @@ const inflight = new Map<string, Promise<IntradayResult>>();
 const INTRADAY_TTL_MS = 120_000;
 
 export const fetchIntraday = createServerFn({ method: "GET" })
-  .inputValidator((d: { symbol: string }) => d)
+  .inputValidator((d: { symbol: string; intervalMinutes?: number; days?: number }) => d)
   .handler(async ({ data }): Promise<IntradayResult> => {
     const now = Date.now();
-    const cached = cache.get(data.symbol);
+    const interval = data.intervalMinutes ?? 5;
+    const days = data.days ?? 6;
+    const key = `${data.symbol}:${interval}:${days}`;
+    const cached = cache.get(key);
     if (cached && now - cached.at < INTRADAY_TTL_MS) return cached.result;
-    const existing = inflight.get(data.symbol);
+    const existing = inflight.get(key);
     if (existing) return existing;
 
     const p = (async () => {
@@ -128,7 +131,7 @@ export const fetchIntraday = createServerFn({ method: "GET" })
         let bars: Bar[] = [];
         let dailyBars: Bar[] = [];
         try {
-          bars = await fetchCnbcBars(data.symbol, now - 6 * 86_400_000, now, 5);
+          bars = await fetchCnbcBars(data.symbol, now - days * 86_400_000, now, interval);
           const hourly = await fetchCnbcBars(data.symbol, now - 40 * 86_400_000, now, 60);
           dailyBars = toDailyBars(hourly);
         } catch (e) {
@@ -136,7 +139,9 @@ export const fetchIntraday = createServerFn({ method: "GET" })
         }
         if (!bars.length) {
           const s = encodeURIComponent(data.symbol);
-          bars = await fetchYahoo(`/v8/finance/chart/${s}?interval=5m&range=5d`);
+          const yInterval = interval >= 60 ? "60m" : `${interval}m`;
+          const yRange = days > 7 ? "1mo" : "5d";
+          bars = await fetchYahoo(`/v8/finance/chart/${s}?interval=${yInterval}&range=${yRange}`);
           if (!dailyBars.length) {
             await sleep(150);
             dailyBars = await fetchYahoo(`/v8/finance/chart/${s}?interval=1d&range=1mo`);
@@ -150,16 +155,16 @@ export const fetchIntraday = createServerFn({ method: "GET" })
           dailyBars: dailyBars.length ? dailyBars : (cached?.result.dailyBars ?? []),
           fetchedAt: new Date().toISOString(),
         };
-        if (bars.length) cache.set(data.symbol, { at: Date.now(), result });
+        if (bars.length) cache.set(key, { at: Date.now(), result });
         return result;
       } catch (e) {
         if (cached) return cached.result;
         console.warn("[intraday] fetch failed", e);
         return { symbol: data.symbol, bars: [], dailyBars: [], fetchedAt: new Date().toISOString() };
       } finally {
-        inflight.delete(data.symbol);
+        inflight.delete(key);
       }
     })();
-    inflight.set(data.symbol, p);
+    inflight.set(key, p);
     return p;
   });
