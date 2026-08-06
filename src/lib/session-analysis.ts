@@ -172,3 +172,29 @@ export function priorClose(daily: Bar[]): number | null {
   if (daily.length < 2) return null;
   return daily[daily.length - 2].c;
 }
+
+/** Friday of the current Mon–Sun week (ET) as yyyy-mm-dd. */
+export function currentWeekFriday(now = Date.now()): string {
+  const ymd = etTradingDay(now);
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay(); // 0 Sun … 6 Sat
+  const mondayOffset = dow === 0 ? -6 : 1 - dow;
+  dt.setUTCDate(dt.getUTCDate() + mondayOffset + 4); // Monday + 4 = Friday
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** Last Friday → this week's Friday window (ET) used by the weekly candle view. */
+export function currentWeekWindow(now = Date.now()) {
+  const friday = currentWeekFriday(now);
+  const [y, m, d] = friday.split("-").map(Number);
+  const prev = new Date(Date.UTC(y, m - 1, d));
+  prev.setUTCDate(prev.getUTCDate() - 7);
+  const prevFriday = `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, "0")}-${String(prev.getUTCDate()).padStart(2, "0")}`;
+  return {
+    prevFriday,
+    friday,
+    startMs: etDateTimeToMs(prevFriday, 9 * 60 + 30),
+    endMs: etDateTimeToMs(friday, 16 * 60),
+  };
+}

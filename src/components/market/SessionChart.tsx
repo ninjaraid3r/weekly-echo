@@ -7,18 +7,18 @@ import { getStoredAvKey } from "@/lib/alphavantage-storage";
 import {
   computeSessionRanges,
   etTradingDay,
-  lastFridayTradingDay,
   etDateTimeToMs,
+  currentWeekWindow,
   type SessionRange,
 } from "@/lib/session-analysis";
 import { Button } from "@/components/ui/button";
-import { Loader2, Activity, Scale, Ruler } from "lucide-react";
+import { Loader2, Activity, Ruler, BrickWall } from "lucide-react";
 import type { PriceLine } from "./SpxLineChart";
 
 export type OverlayToggles = {
   sessions: boolean;
   expectedMove: boolean;
-  pcSkew: boolean;
+  walls: boolean;
 };
 
 const SpxLineChart = lazy(() => import("./SpxLineChart"));
@@ -68,9 +68,28 @@ function useDayData(symbol: string, day: string) {
   }, [data, day, isLoading]);
 }
 
+/** Hourly bars spanning last Friday → this week's Friday, for the weekly candle view. */
+function useWeekData(symbol: string) {
+  const win = useMemo(() => currentWeekWindow(), []);
+  const { data, isLoading } = useQuery({
+    queryKey: ["intraday-week", symbol],
+    queryFn: () => fetchIntraday({ data: { symbol, intervalMinutes: 60, days: 10 } }),
+    refetchInterval: 120_000,
+    staleTime: 90_000,
+  });
+  return useMemo(() => {
+    const bars = (data?.bars ?? []).filter((b) => b.t >= win.startMs && b.t <= win.endMs);
+    return { isLoading, bars, win };
+  }, [data, isLoading, win]);
+}
+
 /** SPX — embedded lightweight line chart with session lines + options expected move. */
-function SpxChart({ day, show }: { day: string; show: OverlayToggles }) {
-  const { analysis, bars, isLoading } = useDayData("^GSPC", day);
+function SpxChart({ day, show, mode }: { day: string; show: OverlayToggles; mode: "today" | "week" }) {
+  const dayData = useDayData("^GSPC", day);
+  const weekData = useWeekData("^GSPC");
+  const analysis = dayData.analysis;
+  const bars = mode === "week" ? weekData.bars : dayData.bars;
+  const isLoading = mode === "week" ? weekData.isLoading : dayData.isLoading;
   const avKey = typeof window !== "undefined" ? getStoredAvKey() : null;
 
   const { data: opts } = useQuery({
@@ -83,17 +102,29 @@ function SpxChart({ day, show }: { day: string; show: OverlayToggles }) {
 
   const lastClose = bars.length ? bars[bars.length - 1].c : null;
 
+  // 1-day expected move: IV scaled to a single trading day (√(1/252)).
   const expectedMove = useMemo(() => {
     if (!opts || lastClose == null) return null;
     const exp = opts.expirations.find((e) => e.avgIV != null);
     if (!exp || exp.avgIV == null) return null;
-    const days = Math.max(
-      1,
-      Math.round((new Date(exp.expiration + "T20:00:00Z").getTime() - Date.now()) / 86_400_000),
-    );
-    const move = lastClose * exp.avgIV * Math.sqrt(days / 365);
+    const pct = exp.avgIV * Math.sqrt(1 / 252);
+    const move = lastClose * pct;
     if (!Number.isFinite(move) || move <= 0) return null;
-    return { move, expiration: exp.expiration, pc: exp.pcVolume, iv: exp.avgIV };
+    return { move, pct, expiration: exp.expiration, iv: exp.avgIV };
+  }, [opts, lastClose]);
+
+  // SPY chain strikes are ~1/10 of SPX — rescale walls onto the index.
+  const walls = useMemo(() => {
+    if (!opts || lastClose == null) return null;
+    const exp = opts.expirations.find((e) => e.callWall != null || e.putWall != null);
+    if (!exp) return null;
+    const ref = exp.callWall ?? exp.putWall!;
+    const scale = ref > 0 && lastClose / ref > 5 ? 10 : 1;
+    return {
+      call: exp.callWall != null ? exp.callWall * scale : null,
+      put: exp.putWall != null ? exp.putWall * scale : null,
+      expiration: exp.expiration,
+    };
   }, [opts, lastClose]);
 
   const priceLines = useMemo<PriceLine[]>(() => {
@@ -114,33 +145,39 @@ function SpxChart({ day, show }: { day: string; show: OverlayToggles }) {
       lines.push({ price: lastClose + expectedMove.move, color: "#7c3aed", title: "EM +", dashed: true });
       lines.push({ price: lastClose - expectedMove.move, color: "#7c3aed", title: "EM −", dashed: true });
     }
-    // Put/call-ratio skewed bands: heavier put flow pulls the projected range down.
-    if (show.pcSkew && expectedMove && lastClose != null && expectedMove.pc != null) {
-      const pc = Math.min(2.5, Math.max(0.2, expectedMove.pc));
-      const skew = (1 - pc) / (1 + pc); // >0 call-heavy, <0 put-heavy
-      const center = lastClose + expectedMove.move * skew;
-      lines.push({ price: center + expectedMove.move, color: "#db2777", title: "P/C +", dashed: true });
-      lines.push({ price: center - expectedMove.move, color: "#db2777", title: "P/C −", dashed: true });
+    if (show.walls && walls) {
+      if (walls.call != null) lines.push({ price: walls.call, color: "#16a34a", title: "Call Wall", dashed: true });
+      if (walls.put != null) lines.push({ price: walls.put, color: "#dc2626", title: "Put Wall", dashed: true });
     }
     return lines;
-  }, [analysis, expectedMove, lastClose, show]);
+  }, [analysis, expectedMove, lastClose, show, walls]);
 
-  const points = useMemo(() => bars.map((b: any) => ({ t: b.t, c: b.c })), [bars]);
+  const points = useMemo(
+    () => bars.map((b: any) => ({ t: b.t, c: b.c, o: b.o, h: b.h, l: b.l })),
+    [bars],
+  );
 
   return (
     <div className="rounded-xl border border-border bg-card p-3">
       <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-        <span className="text-sm font-semibold">SPX</span>
+        <span className="text-sm font-semibold">
+          SPX {mode === "week" ? "· 1H candles · last Fri → Fri" : ""}
+        </span>
         <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground">
           {isLoading && <Loader2 className="size-3 animate-spin" />}
           {expectedMove ? (
             <span style={{ color: "#7c3aed" }}>
-              Expected move ±{fmt(expectedMove.move)} · {expectedMove.expiration} · IV{" "}
+              1-day expected move ±{(expectedMove.pct * 100).toFixed(2)}% (±{fmt(expectedMove.move)}) · IV{" "}
               {(expectedMove.iv * 100).toFixed(1)}%
-              {expectedMove.pc != null ? ` · P/C ${expectedMove.pc.toFixed(2)}` : ""}
             </span>
           ) : (
             <span>{avKey ? "Options data unavailable" : "Add an Alpha Vantage key in Settings for options expected move"}</span>
+          )}
+          {walls && (
+            <span>
+              <span style={{ color: "#16a34a" }}>Call {fmt(walls.call, 0)}</span> ·{" "}
+              <span style={{ color: "#dc2626" }}>Put {fmt(walls.put, 0)}</span>
+            </span>
           )}
         </div>
       </div>
@@ -151,7 +188,7 @@ function SpxChart({ day, show }: { day: string; show: OverlayToggles }) {
       ) : (
         <ClientOnly fallback={<div className="h-[300px]" />}>
           <Suspense fallback={<div className="h-[300px]" />}>
-            <SpxLineChart points={points} priceLines={priceLines} height={300} />
+            <SpxLineChart points={points} priceLines={priceLines} height={300} candles={mode === "week"} />
           </Suspense>
         </ClientOnly>
       )}
@@ -296,10 +333,9 @@ function SymbolChart({ symbol, label, day, show }: { symbol: string; label: stri
 
 export function SessionChart() {
   const today = etTradingDay();
-  const friday = lastFridayTradingDay();
-  // Weekends have no bars — default to the last Friday's full trading day.
-  const [day, setDay] = useState<string>(today === friday ? today : friday);
-  const [show, setShow] = useState<OverlayToggles>({ sessions: true, expectedMove: true, pcSkew: false });
+  const week = currentWeekWindow();
+  const [mode, setMode] = useState<"today" | "week">("week");
+  const [show, setShow] = useState<OverlayToggles>({ sessions: true, expectedMove: true, walls: true });
   const toggle = (k: keyof OverlayToggles) => setShow((s) => ({ ...s, [k]: !s[k] }));
 
   return (
@@ -308,7 +344,8 @@ export function SessionChart() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Session Chart</h2>
           <p className="text-xs text-muted-foreground">
-            Time on X, price on Y. Session highs &amp; lows, NYAM Opening Range in cyan, SPX expected move from options.
+            Time on X, price on Y. Session highs &amp; lows, NYAM Opening Range in cyan, SPX 1-day expected move and
+            call/put walls from options.
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -318,22 +355,22 @@ export function SessionChart() {
           <Button size="sm" variant={show.expectedMove ? "default" : "outline"} onClick={() => toggle("expectedMove")}>
             <Activity className="size-3.5" /> Expected Move
           </Button>
-          <Button size="sm" variant={show.pcSkew ? "default" : "outline"} onClick={() => toggle("pcSkew")}>
-            <Scale className="size-3.5" /> P/C Skew
+          <Button size="sm" variant={show.walls ? "default" : "outline"} onClick={() => toggle("walls")}>
+            <BrickWall className="size-3.5" /> Call/Put Walls
           </Button>
           <span className="mx-1 h-5 w-px bg-border" />
-          <Button size="sm" variant={day === today ? "default" : "outline"} onClick={() => setDay(today)}>
+          <Button size="sm" variant={mode === "today" ? "default" : "outline"} onClick={() => setMode("today")}>
             Today
           </Button>
-          <Button size="sm" variant={day === friday ? "default" : "outline"} onClick={() => setDay(friday)}>
-            Friday ({friday.slice(5)})
+          <Button size="sm" variant={mode === "week" ? "default" : "outline"} onClick={() => setMode("week")}>
+            Current Week ({week.prevFriday.slice(5)} → {week.friday.slice(5)})
           </Button>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3">
-        <SpxChart day={day} show={show} />
+        <SpxChart day={today} show={show} mode={mode} />
         {FUTURES.map((c) => (
-          <SymbolChart key={c.symbol} symbol={c.symbol} label={c.label} day={day} show={show} />
+          <SymbolChart key={c.symbol} symbol={c.symbol} label={c.label} day={today} show={show} />
         ))}
       </div>
     </section>

@@ -9,6 +9,10 @@ export type ExpiryStat = {
   pcVolume: number | null;
   pcOI: number | null;
   avgIV: number | null;
+  /** Strike with the largest call open interest (call wall / resistance). */
+  callWall: number | null;
+  /** Strike with the largest put open interest (put wall / support). */
+  putWall: number | null;
 };
 
 export type OptionsSnapshot = {
@@ -36,6 +40,20 @@ const num = (v: unknown): number => {
 const cache = new Map<string, { at: number; snap: OptionsSnapshot }>();
 const TTL_MS = 60_000;
 
+/** Strike carrying the most open interest in a side of the chain. */
+function maxStrike(m: Map<number, number> | undefined): number | null {
+  if (!m || m.size === 0) return null;
+  let best: number | null = null;
+  let bestOi = -1;
+  for (const [strike, oi] of m) {
+    if (oi > bestOi) {
+      bestOi = oi;
+      best = strike;
+    }
+  }
+  return best;
+}
+
 async function avFetch(params: Record<string, string>): Promise<any> {
   const qs = new URLSearchParams(params).toString();
   const res = await fetch(`https://www.alphavantage.co/query?${qs}`, {
@@ -60,6 +78,8 @@ function summarize(symbol: string, rows: any[], live: boolean, note?: string): O
     putIVn = 0;
   const byExp = new Map<string, ExpiryStat>();
   const ivByExp = new Map<string, { sum: number; n: number }>();
+  // expiration -> strike -> OI, per side, for wall detection
+  const oiByExp = new Map<string, { calls: Map<number, number>; puts: Map<number, number> }>();
 
   for (const r of rows) {
     const isPut = String(r.type ?? "").toLowerCase() === "put";
@@ -69,9 +89,26 @@ function summarize(symbol: string, rows: any[], live: boolean, note?: string): O
     const exp = String(r.expiration ?? "");
     let e = byExp.get(exp);
     if (!e) {
-      e = { expiration: exp, callVolume: 0, putVolume: 0, callOI: 0, putOI: 0, pcVolume: null, pcOI: null, avgIV: null };
+      e = {
+        expiration: exp,
+        callVolume: 0,
+        putVolume: 0,
+        callOI: 0,
+        putOI: 0,
+        pcVolume: null,
+        pcOI: null,
+        avgIV: null,
+        callWall: null,
+        putWall: null,
+      };
       byExp.set(exp, e);
       ivByExp.set(exp, { sum: 0, n: 0 });
+      oiByExp.set(exp, { calls: new Map(), puts: new Map() });
+    }
+    const strike = num(r.strike);
+    if (strike > 0 && oi > 0) {
+      const side = oiByExp.get(exp)![isPut ? "puts" : "calls"];
+      side.set(strike, (side.get(strike) ?? 0) + oi);
     }
     if (iv > 0) {
       const acc = ivByExp.get(exp)!;
@@ -107,6 +144,8 @@ function summarize(symbol: string, rows: any[], live: boolean, note?: string): O
       avgIV: (ivByExp.get(e.expiration)?.n ?? 0) > 0
         ? ivByExp.get(e.expiration)!.sum / ivByExp.get(e.expiration)!.n
         : null,
+      callWall: maxStrike(oiByExp.get(e.expiration)?.calls),
+      putWall: maxStrike(oiByExp.get(e.expiration)?.puts),
     }))
     .sort((a, b) => a.expiration.localeCompare(b.expiration))
     .slice(0, 8);
